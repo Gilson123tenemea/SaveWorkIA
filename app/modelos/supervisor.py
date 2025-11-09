@@ -12,3 +12,4 @@ class Supervisor(Base):
 
     # Relacion con persona
     id_persona_supervisor = Column(Integer, ForeignKey("personas.id_persona"), nullable=False)
+    id_empresa_supervisor = Column(Integer, ForeignKey("empresas.id_Empresa"), nullable=False)

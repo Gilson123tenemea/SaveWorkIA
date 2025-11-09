@@ -14,5 +14,4 @@ class Empresa(Base):
     sector = Column(String(50), nullable=False)
 
     id_administrador_empresa = Column(Integer, ForeignKey("administrador.id_administrador"), nullable=False)
-    id_supervisor_empresa = Column(Integer, ForeignKey("supervisor.id_supervisor"), nullable=False)
     borrado = Column(Boolean, default=True)

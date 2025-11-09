@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 DB_USER = "root"           # Usuario
 DB_PASSWORD = ""           # Contraseña
 DB_HOST = "localhost"      # Host
-DB_NAME = "saveworkdboriginal"     # Base de datos
+DB_NAME = "saveworkdboriginal2"     # Base de datos
 
 # Construir la URL de conexión para MySQL
 SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"

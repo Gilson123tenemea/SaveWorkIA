@@ -22,6 +22,7 @@ from app.modelos import reporte
 from app.modelos import revision_reporte_modelo
 from app.modelos import registrosupervisorinspector
 from app.modelos import inspector_reporte
+from app.modelos import inspector_zona
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
@@ -44,7 +45,8 @@ from app.routers import (
     alerta_router,
     evento_deteccion_router,
     revision_reporte_router,
-    inspector_reporte_router
+    inspector_reporte_router,
+    inspector_zona_router
 
 )
 
@@ -89,6 +91,7 @@ app.include_router(alerta_router.router)
 app.include_router(evento_deteccion_router.router)
 app.include_router(revision_reporte_router.router)
 app.include_router(inspector_reporte_router.router)
+app.include_router(inspector_zona_router.router)
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
 # ----------------------------------------------------------------------
