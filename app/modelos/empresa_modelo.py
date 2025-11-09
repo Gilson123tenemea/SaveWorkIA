@@ -12,9 +12,7 @@ class Empresa(Base):
     telefono = Column(String(15), nullable=False)
     correo = Column(String(100), nullable=False)
     sector = Column(String(50), nullable=False)
-    id_Administrador = Column(Integer, ForeignKey("administradores.id_Administrador"), nullable=False)
-    id_Supervisor = Column(Integer, ForeignKey("supervisores.id_Supervisor"), nullable=False)
-    borrado = Column(Boolean, default=True)
 
-    administrador = relationship("Administrador", back_populates="empresas")
-    supervisor = relationship("Supervisor", back_populates="empresas")
+    id_administrador_empresa = Column(Integer, ForeignKey("administrador.id_administrador"), nullable=False)
+    id_supervisor_empresa = Column(Integer, ForeignKey("supervisor.id_supervisor"), nullable=False)
+    borrado = Column(Boolean, default=True)

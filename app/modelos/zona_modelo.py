@@ -10,10 +10,10 @@ class Zona(Base):
     nombreZona = Column(String(100), nullable=False)
     latitud = Column(String(100), nullable=False)
     longitud = Column(String(100), nullable=False)
-    id_Empresa = Column(Integer, ForeignKey("empresas.id_Empresa"), nullable=False)
-    id_Administrador = Column(Integer, ForeignKey("administradores.id_Administrador"), nullable=False)
+
+    id_empresa_zona = Column(Integer, ForeignKey("empresas.id_Empresa"), nullable=False)
+    id_administrador_zona = Column(Integer, ForeignKey("administrador.id_administrador"), nullable=False)
     borrado = Column(Boolean, default=True)
 
     
-    empresa = relationship("Empresa", back_populates="zonas")
-    administrador = relationship("Administrador", back_populates="zonas")
+    
