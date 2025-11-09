@@ -15,5 +15,5 @@ class Trabajador(Base):
     
     #relaciones
     id_persona_trabajador = Column(Integer, ForeignKey("personas.id_persona"), nullable=False)
-   # id_empresa = Column(Integer, ForeignKey("empresas.id_empresa"), nullable=False)
+    id_empresa = Column(Integer, ForeignKey("empresas.id_Empresa"), nullable=False)
     id_supervisor_trabajador = Column(Integer, ForeignKey("supervisor.id_supervisor"), nullable=False)
