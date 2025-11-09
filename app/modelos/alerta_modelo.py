@@ -14,7 +14,7 @@ class Alerta(Base):
     imagenEvidencia = Column(LargeBinary, nullable=True)
     estado = Column(String(20), nullable=False)
 
-   # id_evento = Column(Integer, ForeignKey("eventos.id_Evento"), nullable=False)
+    id_evento_deteccion = Column(Integer, ForeignKey("eventos_deteccion.id_evento"), nullable=False)
     id_reporte = Column(Integer, ForeignKey("reportes.id_reporte"), nullable=False)
     id_supervisor_alerta = Column(Integer, ForeignKey("supervisor.id_supervisor"), nullable=False)
     borrado = Column(Boolean, default=True)

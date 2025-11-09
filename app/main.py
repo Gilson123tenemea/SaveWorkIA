@@ -21,6 +21,7 @@ from app.modelos import evento_deteccion_modelo
 from app.modelos import reporte
 from app.modelos import revision_reporte_modelo
 from app.modelos import registrosupervisorinspector
+from app.modelos import inspector_reporte
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
@@ -42,7 +43,9 @@ from app.routers import (
     camara_router,
     alerta_router,
     evento_deteccion_router,
-    revision_reporte_router
+    revision_reporte_router,
+    inspector_reporte_router
+
 )
 
 # ----------------------------------------------------------------------
@@ -85,7 +88,7 @@ app.include_router(camara_router.router)
 app.include_router(alerta_router.router)
 app.include_router(evento_deteccion_router.router)
 app.include_router(revision_reporte_router.router)
-
+app.include_router(inspector_reporte_router.router)
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
 # ----------------------------------------------------------------------

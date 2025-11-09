@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.modelos.inspector_reporte import InspectorReporte
+from app.modelos.inspector_reporte import Inspectorreporte as InspectorReporte
 from app.esquemas.inspector_reporte_esquema import InspectorReporteCreate
 
 def crear_inspector_reporte(db: Session, inspector_reporte: InspectorReporteCreate):

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
 from app.config import Base
 
-class Inspector_reporte(Base):
+class Inspectorreporte(Base):
     __tablename__ = "inspector_reportes"
 
     id_inspector_reporte = Column(Integer, primary_key=True, index=True)
