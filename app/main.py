@@ -4,18 +4,46 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import Base, engine, SessionLocal
-from app.routers import persona_router  
-from app.routers import administrador_router 
-from app.routers import supervisor_router 
-from app.routers import inspector_router
-from app.routers import registrosupervisorinspector_router
-from app.routers import trabajador_router, empresa_router, zona_router, camara_router, alerta_router
 
+# ----------------------------------------------------------------------
+# 🔹 Importar todos los modelos antes de crear las tablas
+# ----------------------------------------------------------------------
+from app.modelos import persona
+from app.modelos import administrador
+from app.modelos import supervisor
+from app.modelos import inspector
+from app.modelos import trabajador
+from app.modelos import empresa_modelo
+from app.modelos import zona_modelo
+from app.modelos import camara_modelo
+from app.modelos import alerta_modelo
+from app.modelos import evento_deteccion_modelo
+from app.modelos import reporte
+from app.modelos import revision_reporte_modelo
+from app.modelos import registrosupervisorinspector
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
 # ----------------------------------------------------------------------
 Base.metadata.create_all(bind=engine)
+
+# ----------------------------------------------------------------------
+# 🔹 Importar routers
+# ----------------------------------------------------------------------
+from app.routers import (
+    persona_router,
+    administrador_router,
+    supervisor_router,
+    inspector_router,
+    registrosupervisorinspector_router,
+    trabajador_router,
+    empresa_router,
+    zona_router,
+    camara_router,
+    alerta_router,
+    evento_deteccion_router,
+    revision_reporte_router
+)
 
 # ----------------------------------------------------------------------
 # 🔹 Instancia principal de FastAPI
@@ -52,14 +80,11 @@ app.include_router(inspector_router.router)
 app.include_router(registrosupervisorinspector_router.router)
 app.include_router(trabajador_router.router)
 app.include_router(empresa_router.router)
-app.include_router(zona_router.router) 
+app.include_router(zona_router.router)
 app.include_router(camara_router.router)
-app.include_router(alerta_router.router)    
-
-# Luego irás agregando más, por ejemplo:
-# app.include_router(empresa_router.router)
-# app.include_router(supervisor_router.router)
-# app.include_router(deteccion_router.router)   ← para la IA
+app.include_router(alerta_router.router)
+app.include_router(evento_deteccion_router.router)
+app.include_router(revision_reporte_router.router)
 
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
