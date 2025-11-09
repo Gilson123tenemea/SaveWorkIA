@@ -11,5 +11,4 @@ class Inspector(Base):
     borrado = Column(Boolean, default=True)
 
     # Relacion con persona
-    id_persona_inspector = Column(Integer, nullable=False)
     id_persona_inspector = Column(Integer, ForeignKey("personas.id_persona"), nullable=False)

@@ -4,7 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import Base, engine, SessionLocal
-from app.routers import persona_router  # Importa tu nuevo router (puedes agregar más luego)
+from app.routers import persona_router  
+from app.routers import administrador_router 
+from app.routers import supervisor_router 
+from app.routers import inspector_router
+from app.routers import registrosupervisorinspector_router
+from app.routers import trabajador_router
+
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
@@ -40,6 +46,12 @@ app.add_middleware(
 # 🔹 Registrar Routers
 # ----------------------------------------------------------------------
 app.include_router(persona_router.router)
+app.include_router(administrador_router.router)
+app.include_router(supervisor_router.router)
+app.include_router(inspector_router.router)
+app.include_router(registrosupervisorinspector_router.router)
+app.include_router(trabajador_router.router)
+
 # Luego irás agregando más, por ejemplo:
 # app.include_router(empresa_router.router)
 # app.include_router(supervisor_router.router)

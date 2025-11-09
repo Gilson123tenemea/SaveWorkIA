@@ -9,7 +9,7 @@ class RegistroSupervisorInspectorBase(BaseModel):
     id_inspector_registro: int
 
 class RegistroSupervisorInspectorCreate(RegistroSupervisorInspectorBase):
-    pass  # No hay campos adicionales por ahora
+    pass
 
 class RegistroSupervisorInspectorResponse(RegistroSupervisorInspectorBase):
     id_registrosupervisorins: int

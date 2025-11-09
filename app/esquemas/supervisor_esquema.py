@@ -8,7 +8,7 @@ class SupervisorBase(BaseModel):
     id_persona_supervisor: int
 
 class SupervisorCreate(SupervisorBase):
-    pass  # No hay campos adicionales por ahora
+    pass
 
 class SupervisorResponse(SupervisorBase):
     id_supervisor: int

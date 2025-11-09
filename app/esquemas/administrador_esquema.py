@@ -9,7 +9,7 @@ class AdministradorBase(BaseModel):
     id_persona_administrador: int
 
 class AdministradorCreate(AdministradorBase):
-    pass  # No hay campos adicionales por ahora
+    pass
 
 class AdministradorResponse(AdministradorBase):
     id_administrador: int

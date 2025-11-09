@@ -8,7 +8,7 @@ class InspectorBase(BaseModel):
     id_persona_inspector: int
 
 class InspectorCreate(InspectorBase):
-    pass  # No hay campos adicionales por ahora
+    pass
 
 class InspectorResponse(InspectorBase):
     id_inspector: int

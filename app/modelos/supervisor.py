@@ -11,5 +11,4 @@ class Supervisor(Base):
     borrado = Column(Boolean, default=True)
 
     # Relacion con persona
-    id_persona_supervisor = Column(Integer, nullable=False)
     id_persona_supervisor = Column(Integer, ForeignKey("personas.id_persona"), nullable=False)

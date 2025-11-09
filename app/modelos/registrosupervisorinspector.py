@@ -10,7 +10,5 @@ class RegistroSupervisorInspector(Base):
     borrado = Column(Boolean, default=True)
 
     # Relaciones
-    id_supervisor_registro = Column(Integer, nullable=False)
     id_supervisor_registro = Column(Integer, ForeignKey("supervisor.id_supervisor"),nullable=False)
-    id_inspector_registro = Column(Integer, nullable=False)
     id_inspector_registro = Column(Integer, ForeignKey("inspector.id_inspector"), nullable=False)
