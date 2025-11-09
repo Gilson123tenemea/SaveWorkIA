@@ -9,7 +9,7 @@ from app.routers import administrador_router
 from app.routers import supervisor_router 
 from app.routers import inspector_router
 from app.routers import registrosupervisorinspector_router
-from app.routers import trabajador_router
+from app.routers import trabajador_router, empresa_router, zona_router, camara_router, alerta_router
 
 
 # ----------------------------------------------------------------------
@@ -51,6 +51,10 @@ app.include_router(supervisor_router.router)
 app.include_router(inspector_router.router)
 app.include_router(registrosupervisorinspector_router.router)
 app.include_router(trabajador_router.router)
+app.include_router(empresa_router.router)
+app.include_router(zona_router.router) 
+app.include_router(camara_router.router)
+app.include_router(alerta_router.router)    
 
 # Luego irás agregando más, por ejemplo:
 # app.include_router(empresa_router.router)
