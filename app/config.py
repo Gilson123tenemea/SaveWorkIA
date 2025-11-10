@@ -4,21 +4,22 @@ from sqlalchemy.orm import sessionmaker
 
 # --- Parámetros de conexión MySQL ---
 DB_USER = "root"           # Usuario
-DB_PASSWORD = ""           # Contraseña
+DB_PASSWORD = "1234"       # Contraseña
 DB_HOST = "localhost"      # Host
-DB_NAME = "saveworkdboriginal2"     # Base de datos
+DB_PORT = 3307             # ⚠️ Cambia según el que tengas en Workbench
+DB_NAME = "saveworkdb"     # Base de datos
 
 # Construir la URL de conexión para MySQL
-SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # --- Conexión ---
 try:
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base = declarative_base()
-    print("Conexión a la base de datos exitosa ✅")  # Mensaje en consola
+    print("✅ Conexión a la base de datos exitosa")
 except Exception as e:
-    print(f"No se pudo conectar a la base de datos: {e}")  # Mensaje en consola
+    print(f"❌ No se pudo conectar a la base de datos: {e}")
 
 # Función helper para obtener sesión
 def get_db():
