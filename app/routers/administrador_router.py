@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
-from app.esquemas.administrador_esquema import AdministradorCreate, AdministradorResponse
-from app.servicios import administrador_servicio
+from app.esquemas.administrador_esquema import AdministradorCreate, LoginAdministrador
+from app.servicios.administrador_servicio import crear_administrador, login_administrador
 
-router = APIRouter(prefix="/administradores", tags=["Administradores"])
+router = APIRouter(prefix="/administradores", tags=["Administrador"])
 
-# Dependencia de sesión de BD
+# Dependencia para la sesión de base de datos
 def get_db():
     db = SessionLocal()
     try:
@@ -14,14 +14,10 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/", response_model=AdministradorResponse)
-def crear_administrador(administrador: AdministradorCreate, db: Session = Depends(get_db)):
-    return administrador_servicio.crear_administrador(db, administrador)
+@router.post("/registrar")
+def registrar_admin(request: AdministradorCreate, db: Session = Depends(get_db)):
+    return crear_administrador(db, request)
 
-@router.get("/", response_model=list[AdministradorResponse])
-def listar_administradores(db: Session = Depends(get_db)):
-    return administrador_servicio.obtener_administradores(db)
-
-@router.get("/{admin_id}", response_model=AdministradorResponse)
-def obtener_administrador(admin_id: int, db: Session = Depends(get_db)):
-    return administrador_servicio.obtener_administrador_por_id(db, admin_id)
+@router.post("/login")
+def login_admin(request: LoginAdministrador, db: Session = Depends(get_db)):
+    return login_administrador(db, request)

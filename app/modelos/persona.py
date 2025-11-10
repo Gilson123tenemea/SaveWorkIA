@@ -6,6 +6,7 @@ class Persona(Base):
     __tablename__ = "personas"
 
     id_persona = Column(Integer, primary_key=True, index=True)
+    cedula = Column(String(10), unique=True, index=True, nullable=False)
     nombre = Column(String(100), nullable=False)
     apellido = Column(String(100), nullable=False)
     telefono = Column(String(15), nullable=True)
@@ -14,5 +15,6 @@ class Persona(Base):
     genero = Column(String(20), nullable=False)
     fecha_nacimiento = Column(Date, nullable=False)
     foto = Column(LargeBinary, nullable=True) 
-    contrasena = Column(String(50), nullable=False)
+    contrasena = Column(String(255), nullable=False)
+    rol = Column(String(50), nullable=False)
     borrado = Column(Boolean, default=True)

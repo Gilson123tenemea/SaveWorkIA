@@ -65,7 +65,7 @@ app = FastAPI(
 # 🔹 Configuración de CORS (para permitir peticiones desde el frontend)
 # ----------------------------------------------------------------------
 origins = [
-    "http://localhost:5173",  # tu frontend React o Vite local
+    "http://localhost:3000",
     "http://127.0.0.1:5173"
 ]
 
