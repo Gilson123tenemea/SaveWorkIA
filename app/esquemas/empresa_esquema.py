@@ -11,8 +11,7 @@ class EmpresaBase(BaseModel):
     borrado: Optional[bool] = True
 
 class EmpresaCreate(EmpresaBase):
-    id_Administrador: int
-    id_Supervisor: int
+    id_administrador_empresa: int   # 🔹 mismo nombre que el modelo
 
 class EmpresaUpdate(BaseModel):
     nombreEmpresa: Optional[str] = None
@@ -21,14 +20,12 @@ class EmpresaUpdate(BaseModel):
     telefono: Optional[str] = None
     correo: Optional[EmailStr] = None
     sector: Optional[str] = None
-    id_Administrador: Optional[int] = None
-    id_Supervisor: Optional[int] = None
+    id_administrador_empresa: Optional[int] = None
     borrado: Optional[bool] = None
 
 class EmpresaResponse(EmpresaBase):
     id_Empresa: int
-    id_Administrador: int
-    id_Supervisor: int
+    id_administrador_empresa: int   # 🔹 mismo nombre que el modelo
 
     class Config:
         orm_mode = True
