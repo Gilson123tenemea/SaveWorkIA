@@ -54,31 +54,47 @@ def crear_administrador(db: Session, datos: AdministradorCreate):
         "borrado": nuevo_admin.borrado
     }
 
-# --- Login administrador ---
 def login_administrador(db: Session, datos: LoginAdministrador):
-    persona = db.query(Persona).filter(
-        Persona.correo == datos.correo,
-        Persona.borrado == True
-    ).first()
+    # 🔍 Buscar persona por correo
+    persona = db.query(Persona).filter(Persona.correo == datos.correo).first()
 
     if not persona:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Correo o contraseña incorrectos")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Correo o contraseña incorrectos"
+        )
 
-    # 🔒 Verificar contraseña encriptada
+    # ⚠️ Verificar si está activa
+    if not persona.borrado:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuario inactivo o sin permisos"
+        )
+
+    # 🔒 Verificar contraseña
     if not verificar_contrasena(datos.contrasena, persona.contrasena):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Correo o contraseña incorrectos")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Correo o contraseña incorrectos"
+        )
 
+    # 🧩 Verificar si la persona tiene registro como administrador
     admin = db.query(Administrador).filter(
         Administrador.id_persona_administrador == persona.id_persona,
         Administrador.borrado == True
     ).first()
 
     if not admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El usuario no es administrador")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El usuario no es administrador"
+        )
 
+    # 🕒 Actualizar fecha de última conexión
     admin.ultima_conexion = date.today()
     db.commit()
 
+    # ✅ Login exitoso
     return {
         "mensaje": "Inicio de sesión exitoso",
         "id_administrador": admin.id_administrador,
