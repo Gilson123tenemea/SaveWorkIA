@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
-from app.esquemas.supervisor_esquema import SupervisorCreate, SupervisorResponse
-from app.servicios import supervisor_servicio
+from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor
+from app.servicios.supervisor_servicio import crear_supervisor, login_supervisor, listar_supervisores_activos, eliminar_supervisor, editar_supervisor, SupervisorUpdate
 
 router = APIRouter(prefix="/supervisores", tags=["Supervisores"])
 
-# Dependencia de sesión de BD
+# Dependencia para la sesión de BD
 def get_db():
     db = SessionLocal()
     try:
@@ -14,14 +14,23 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/", response_model=SupervisorResponse)
-def crear_supervisor(supervisor: SupervisorCreate, db: Session = Depends(get_db)):
-    return supervisor_servicio.crear_supervisor(db, supervisor)
+@router.post("/registrar")
+def registrar_supervisor(request: SupervisorCreate, db: Session = Depends(get_db)):
+    return crear_supervisor(db, request)
 
-@router.get("/", response_model=list[SupervisorResponse])
+@router.post("/login")
+def login_supervisor_endpoint(request: LoginSupervisor, db: Session = Depends(get_db)):
+    return login_supervisor(db, request)
+
+@router.get("/listar")
 def listar_supervisores(db: Session = Depends(get_db)):
-    return supervisor_servicio.obtener_supervisores(db)
+    return listar_supervisores_activos(db)
 
-@router.get("/{supervisor_id}", response_model=SupervisorResponse)
-def obtener_supervisor(supervisor_id: int, db: Session = Depends(get_db)):
-    return supervisor_servicio.obtener_supervisor_por_id(db, supervisor_id)
+# --- Nuevo endpoint: eliminado lógico ---
+@router.delete("/eliminar/{id_supervisor}")
+def eliminar_supervisor_endpoint(id_supervisor: int, db: Session = Depends(get_db)):
+    return eliminar_supervisor(db, id_supervisor)
+
+@router.put("/editar/{id_supervisor}")
+def actualizar_supervisor(id_supervisor: int, request: SupervisorUpdate, db: Session = Depends(get_db)):
+    return editar_supervisor(db, id_supervisor, request)
