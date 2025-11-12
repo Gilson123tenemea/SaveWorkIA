@@ -17,3 +17,7 @@ class Camara(Base):
     id_zona = Column(Integer, ForeignKey("zonas.id_Zona"), nullable=False)
     id_administrador = Column(Integer, ForeignKey("administrador.id_administrador"), nullable=False)
     borrado = Column(Boolean, default=True)
+
+     # 🔹 Relación con Zona
+    zona = relationship("Zona", back_populates="camaras")
+

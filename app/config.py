@@ -7,7 +7,7 @@ DB_USER = "root"           # Usuario
 DB_PASSWORD = "1234"       # Contraseña
 DB_HOST = "localhost"      # Host
 DB_PORT = 3307             # ⚠️ Cambia según el que tengas en Workbench
-DB_NAME = "saveworkdboriginal"     # Base de datos
+DB_NAME = "saveworkdb"     # Base de datos
 
 # Construir la URL de conexión para MySQL
 SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"

@@ -15,3 +15,5 @@ class Empresa(Base):
 
     id_administrador_empresa = Column(Integer, ForeignKey("administrador.id_administrador"), nullable=False)
     borrado = Column(Boolean, default=True)
+    
+    zonas = relationship("Zona", back_populates="empresa")
