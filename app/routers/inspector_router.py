@@ -37,3 +37,7 @@ def eliminar_inspector(id_inspector: int, db: Session = Depends(get_db)):
 @router.post("/login")
 def login_inspector(request: LoginInspector, db: Session = Depends(get_db)):
     return inspector_servicio.login_inspector(db, request)
+
+@router.get("/supervisor/{id_supervisor}")
+def listar_inspectores_por_supervisor(id_supervisor: int, db: Session = Depends(get_db)):
+    return inspector_servicio.listar_inspectores_por_supervisor(db, id_supervisor)

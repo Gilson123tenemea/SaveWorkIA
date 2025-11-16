@@ -205,3 +205,35 @@ def login_inspector(db: Session, datos: LoginInspector):
         "correo": persona.correo,
         "role": persona.rol
     }
+
+def listar_inspectores_por_supervisor(db: Session, id_supervisor: int):
+    registros = (
+        db.query(RegistroSupervisorInspector, Inspector, Persona)
+        .join(Inspector, RegistroSupervisorInspector.id_inspector_registro == Inspector.id_inspector)
+        .join(Persona, Inspector.id_persona_inspector == Persona.id_persona)
+        .filter(
+            RegistroSupervisorInspector.id_supervisor_registro == id_supervisor,
+            Inspector.borrado == True
+        )
+        .all()
+    )
+
+    resultado = []
+    for registro, inspector, persona in registros:
+        resultado.append({
+            "id_inspector": inspector.id_inspector,
+            "nombre": persona.nombre,
+            "apellido": persona.apellido,
+            "correo": persona.correo,
+            "telefono": persona.telefono,
+            "cedula": persona.cedula,
+            "direccion": persona.direccion,
+            "genero": persona.genero,
+            "fecha_nacimiento": persona.fecha_nacimiento.isoformat(),
+            "zona_asignada": inspector.zona_asignada,
+            "frecuenciaVisita": inspector.frecuenciaVisita,
+            "borrado": inspector.borrado,
+            "fecha_asignacion": registro.fecha_asignacion
+        })
+
+    return resultado
