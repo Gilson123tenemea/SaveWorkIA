@@ -1,18 +1,19 @@
 from pydantic import BaseModel
-from datetime import date
 from typing import Optional
+from datetime import date
 
 class InspectorZonaBase(BaseModel):
-    fecha_asignacion: date
-    borrado: Optional[bool] = True
     id_inspector_inspectorzona: int
     id_zona_inspectorzona: int
+    borrado: Optional[bool] = True
 
 class InspectorZonaCreate(InspectorZonaBase):
     pass
 
 class InspectorZonaResponse(InspectorZonaBase):
     id_inspector_zona: int
+    # La fecha sí se devuelve
+    fecha_asignacion: date   
 
     class Config:
         orm_mode = True
