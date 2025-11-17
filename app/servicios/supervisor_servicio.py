@@ -102,9 +102,8 @@ def eliminar_supervisor(db: Session, id_supervisor: int):
     db.commit()
     return {"mensaje": "Supervisor eliminado lógicamente con éxito"}
 
-
 def login_supervisor(db: Session, datos: LoginSupervisor):
-    # Buscar la persona activa
+    # Buscar la persona
     persona = db.query(Persona).filter(Persona.correo == datos.correo).first()
 
     if not persona:
@@ -113,21 +112,20 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
             detail="Correo o contraseña incorrectos"
         )
 
-    # Validar si está activo
     if not persona.borrado:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo o sin permisos"
         )
 
-    # Validar la contraseña
+    # Validar contraseña
     if not verificar_contrasena(datos.contrasena, persona.contrasena):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos"
         )
 
-    # Validar si es supervisor activo
+    # Buscar supervisor activo
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_persona_supervisor == persona.id_persona,
         Supervisor.borrado == True
@@ -139,10 +137,11 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
             detail="El usuario no es supervisor"
         )
 
-    # Respuesta exitosa
+    # ✔️ SALIDA CORRECTA CON EMPRESA
     return {
         "mensaje": "Inicio de sesión exitoso",
         "id_supervisor": supervisor.id_supervisor,
+        "id_empresa_supervisor": supervisor.id_empresa_supervisor,  # 👈 NECESARIO
         "nombre": persona.nombre,
         "correo": persona.correo,
         "rol": persona.rol
