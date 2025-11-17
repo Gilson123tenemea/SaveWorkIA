@@ -45,3 +45,18 @@ class SupervisorUpdate(BaseModel):
     persona: PersonaBase
     especialidad_seguridad: str
     experiencia: int
+from pydantic import BaseModel
+from typing import Optional
+
+class EmpresaResponse(BaseModel):
+    id_Empresa: int
+    nombreEmpresa: str
+    ruc: str
+    direccion: str
+    telefono: str
+    correo: str
+    sector: str
+    id_administrador_empresa: int
+
+    class Config:
+        orm_mode = True

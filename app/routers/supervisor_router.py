@@ -3,6 +3,13 @@ from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor
 from app.servicios.supervisor_servicio import crear_supervisor, login_supervisor, listar_supervisores_activos, eliminar_supervisor, editar_supervisor, SupervisorUpdate
+from app.servicios.supervisor_servicio import (
+    crear_supervisor, login_supervisor,
+    listar_supervisores_activos, eliminar_supervisor,
+    editar_supervisor, obtener_empresa_por_supervisor
+)
+from app.esquemas.empresa_esquema import EmpresaResponse
+
 
 router = APIRouter(prefix="/supervisores", tags=["Supervisores"])
 
@@ -34,3 +41,7 @@ def eliminar_supervisor_endpoint(id_supervisor: int, db: Session = Depends(get_d
 @router.put("/editar/{id_supervisor}")
 def actualizar_supervisor(id_supervisor: int, request: SupervisorUpdate, db: Session = Depends(get_db)):
     return editar_supervisor(db, id_supervisor, request)
+
+@router.get("/empresa/{id_supervisor}", response_model=EmpresaResponse)
+def obtener_empresa(id_supervisor: int, db: Session = Depends(get_db)):
+    return obtener_empresa_por_supervisor(db, id_supervisor)

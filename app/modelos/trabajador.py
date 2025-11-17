@@ -1,5 +1,7 @@
 # app/modelos/trabajador.py
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
+from sqlalchemy.orm import relationship
+from sqlalchemy import text
 from app.config import Base
 
 class Trabajador(Base):
@@ -10,10 +12,13 @@ class Trabajador(Base):
     area_trabajo = Column(String(100), nullable=False)
     implementos_requeridos = Column(String(550), nullable=False)
     estado = Column(Boolean, default=True)
-    fecharegistro = Column(Date, nullable=False)
+    fecharegistro = Column(Date, nullable=False, server_default=text('CURDATE()'))
+    codigo_trabajador = Column(String(50), unique=True, nullable=False)
     borrado = Column(Boolean, default=False)
     
     #relaciones
     id_persona_trabajador = Column(Integer, ForeignKey("personas.id_persona"), nullable=False)
     id_empresa = Column(Integer, ForeignKey("empresas.id_Empresa"), nullable=False)
     id_supervisor_trabajador = Column(Integer, ForeignKey("supervisor.id_supervisor"), nullable=False)
+
+    persona = relationship("Persona", lazy="joined")

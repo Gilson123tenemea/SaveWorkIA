@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import date
-
+from app.modelos.empresa_modelo import Empresa
+from app.modelos.supervisor import Supervisor
 from app.modelos.persona import Persona
 from app.modelos.supervisor import Supervisor
 from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor, SupervisorUpdate
@@ -195,3 +196,24 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
         "especialidad_seguridad": supervisor.especialidad_seguridad,
         "experiencia": supervisor.experiencia
     }
+
+def obtener_empresa_por_supervisor(db: Session, id_supervisor: int):
+    # Buscar supervisor
+    supervisor = db.query(Supervisor).filter(
+        Supervisor.id_supervisor == id_supervisor,
+        Supervisor.borrado == True
+    ).first()
+
+    if not supervisor:
+        raise HTTPException(status_code=404, detail="Supervisor no encontrado o inactivo")
+
+    # Buscar empresa asociada
+    empresa = db.query(Empresa).filter(
+        Empresa.id_Empresa == supervisor.id_empresa_supervisor,
+        Empresa.borrado == True
+    ).first()
+
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada o inactiva")
+
+    return empresa
