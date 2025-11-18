@@ -17,3 +17,17 @@ class InspectorZonaResponse(InspectorZonaBase):
 
     class Config:
         orm_mode = True
+
+class InspectorZonaFullResponse(BaseModel):
+    id_inspector_zona: int
+    fecha_asignacion: date
+    borrado: bool
+
+    inspector_cedula: str
+    inspector_nombre: str
+    inspector_apellido: str
+
+    zona_nombre: str
+
+    class Config:
+        orm_mode = True

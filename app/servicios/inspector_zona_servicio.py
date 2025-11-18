@@ -1,5 +1,10 @@
 from sqlalchemy.orm import Session
 from datetime import date
+from app.modelos.inspector_zona import InspectorZona
+from app.modelos.supervisor import Supervisor
+from app.modelos.zona_modelo import Zona
+from app.modelos.inspector import Inspector
+from app.modelos.persona import Persona
 
 from app.modelos.inspector_zona import InspectorZona
 from app.esquemas.inspector_zona_esquema import InspectorZonaCreate, InspectorZonaBase
@@ -62,3 +67,38 @@ def eliminar_inspector_zona(db: Session, asignacion_id: int):
     db.commit()
     db.refresh(asignacion)
     return asignacion
+
+def obtener_asignaciones_completas(db: Session, empresa_id: int):
+    registros = (
+        db.query(InspectorZona, Inspector, Persona, Zona)
+        .join(Inspector, InspectorZona.id_inspector_inspectorzona == Inspector.id_inspector)
+        .join(Persona, Inspector.id_persona_inspector == Persona.id_persona)
+        .join(Zona, InspectorZona.id_zona_inspectorzona == Zona.id_Zona)
+        .filter(
+            Zona.id_empresa_zona == empresa_id,
+            InspectorZona.borrado == True
+        )
+        .all()
+    )
+
+    resultado = []
+
+    for asignacion, inspector, persona, zona in registros:
+        resultado.append({
+            "id_inspector_zona": asignacion.id_inspector_zona,
+            "fecha_asignacion": asignacion.fecha_asignacion,
+
+            "inspector": {
+                "id_inspector": inspector.id_inspector,
+                "cedula": persona.cedula,
+                "nombre": persona.nombre,
+                "apellido": persona.apellido
+            },
+
+            "zona": {
+                "id_zona": zona.id_Zona,
+                "nombreZona": zona.nombreZona
+            }
+        })
+
+    return resultado

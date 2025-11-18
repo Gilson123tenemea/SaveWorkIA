@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.inspector_zona_esquema import (
     InspectorZonaCreate,
-    InspectorZonaResponse
+    InspectorZonaResponse,
+    InspectorZonaFullResponse
 )
 from app.servicios import inspector_zona_servicio
 
@@ -51,3 +52,7 @@ def eliminar(asignacion_id: int, db: Session = Depends(get_db)):
     if not asignacion:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
     return asignacion
+
+@router.get("/empresa/{empresa_id}")
+def listar_por_empresa(empresa_id: int, db: Session = Depends(get_db)):
+    return inspector_zona_servicio.obtener_asignaciones_completas(db, empresa_id)
