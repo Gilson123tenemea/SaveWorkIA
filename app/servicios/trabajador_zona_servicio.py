@@ -10,8 +10,6 @@ from app.esquemas.trabajador_zona_esquema import TrabajadorZonaCreate
 from app.modelos.trabajador import Trabajador
 
 def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
-
-    # 1️⃣ Obtener supervisor
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_supervisor == id_supervisor,
         Supervisor.borrado == True
@@ -21,19 +19,15 @@ def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
         return []
 
     empresa_id = supervisor.id_empresa_supervisor
-
-    # 2️⃣ Listar zonas de esa empresa
     zonas = db.query(Zona).filter(
       Zona.id_empresa_zona == empresa_id,
       Zona.borrado == True
     ).all()
 
-
     respuesta = []
 
     for zona in zonas:
 
-        # 3️⃣ Obtener inspector asignado
         inspector_zona = db.query(InspectorZona).filter(
             InspectorZona.id_zona_inspectorzona == zona.id_Zona,
             InspectorZona.borrado == True
@@ -61,19 +55,20 @@ def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
                         "cedula": persona.cedula
                     }
 
-        # 4️⃣ Contar cámaras
+        # ❌ Si NO hay inspector, no agregamos esta zona
+        if inspector_data is None:
+            continue
+
         total_camaras = db.query(Camara).filter(
             Camara.id_zona == zona.id_Zona,
             Camara.borrado == True
         ).count()
 
-        # 5️⃣ Contar trabajadores
         total_trabajadores = db.query(TrabajadorZona).filter(
             TrabajadorZona.id_zona_trabajadorzona == zona.id_Zona,
             TrabajadorZona.borrado == True
         ).count()
 
-        # 6️⃣ Armar respuesta final
         respuesta.append({
             "zona": {
                 "id": zona.id_Zona,
@@ -87,6 +82,7 @@ def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
         })
 
     return respuesta
+
 
 # ===========================
 # 📌 CRUD Trabajador-Zona
