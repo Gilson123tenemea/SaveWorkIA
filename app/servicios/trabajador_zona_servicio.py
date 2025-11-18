@@ -7,7 +7,7 @@ from app.modelos.persona import Persona
 from app.modelos.camara_modelo import Camara
 from app.modelos.trabajador_zona import TrabajadorZona
 from app.esquemas.trabajador_zona_esquema import TrabajadorZonaCreate
-
+from app.modelos.trabajador import Trabajador
 
 def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
 
@@ -133,3 +133,38 @@ def eliminar_logico_trabajador_zona(db: Session, asignacion_id: int):
         db.refresh(asignacion)
         return asignacion
     return None
+
+def obtener_trabajador_zonas_detalles(db: Session):
+
+    filas = (
+        db.query(
+            TrabajadorZona.id_trabajador_zona.label("id_asignacion"),
+            Trabajador.id_trabajador.label("trabajador_id"),
+            Persona.nombre.label("trabajador_nombre"),
+            Persona.apellido.label("trabajador_apellido"),
+            Persona.cedula.label("trabajador_cedula"),
+            Trabajador.cargo.label("trabajador_cargo"),
+            Zona.id_Zona.label("zona_id"),
+            Zona.nombreZona.label("zona_nombre"),
+        )
+        .join(Trabajador, TrabajadorZona.id_trabajador_trabajadorzona == Trabajador.id_trabajador)
+        .join(Persona, Trabajador.id_persona_trabajador == Persona.id_persona)
+        .join(Zona, TrabajadorZona.id_zona_trabajadorzona == Zona.id_Zona)
+        .filter(TrabajadorZona.borrado == True)
+        .all()
+    )
+
+    resultado = []
+    for row in filas:
+        resultado.append({
+            "id_asignacion": row.id_asignacion,
+            "trabajador_id": row.trabajador_id,
+            "trabajador_nombre": row.trabajador_nombre,
+            "trabajador_apellido": row.trabajador_apellido,
+            "trabajador_cedula": row.trabajador_cedula,
+            "trabajador_cargo": row.trabajador_cargo,
+            "zona_id": row.zona_id,
+            "zona_nombre": row.zona_nombre,
+        })
+
+    return resultado

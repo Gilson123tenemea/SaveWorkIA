@@ -16,7 +16,8 @@ from app.esquemas.trabajador_zona_esquema import (
     TrabajadorZonaResponse
 )
 from app.esquemas.trabajador_zona_esquema import ZonaDetallesResponse
-
+from app.esquemas.trabajador_zona_esquema import TrabajadorZonaDetalle
+from app.servicios.trabajador_zona_servicio import obtener_trabajador_zonas_detalles
 
 router = APIRouter(prefix="/trabajador_zonas", tags=["Trabajador - Zonas"])
 
@@ -31,6 +32,12 @@ def get_db():
 def listar_zonas_por_supervisor(id_supervisor: int, db: Session = Depends(get_db)):
     return obtener_zonas_con_detalles_por_supervisor(db, id_supervisor)
 
+# =====================================================
+# 🔥 IMPORTANTE: RUTA DETALLES DEBE IR ANTES DE /{id}
+# =====================================================
+@router.get("/detalles", response_model=list[TrabajadorZonaDetalle])
+def listar_detalles(db: Session = Depends(get_db)):
+    return obtener_trabajador_zonas_detalles(db)
 
 # ===========================
 # 📌 CRUD
@@ -68,3 +75,4 @@ def eliminar_logico(asignacion_id: int, db: Session = Depends(get_db)):
     if not asignacion:
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
     return asignacion
+

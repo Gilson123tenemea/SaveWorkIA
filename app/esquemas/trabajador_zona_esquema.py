@@ -39,3 +39,17 @@ class TrabajadorZonaResponse(TrabajadorZonaBase):
 
     class Config:
         orm_mode = True
+
+class TrabajadorZonaDetalle(BaseModel):
+    id_asignacion: int
+    trabajador_id: int
+    trabajador_nombre: str
+    trabajador_apellido: str
+    trabajador_cedula: str
+    trabajador_cargo: str
+
+    zona_id: int
+    zona_nombre: str
+
+    class Config:
+        orm_mode = True
