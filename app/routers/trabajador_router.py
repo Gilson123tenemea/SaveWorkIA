@@ -66,3 +66,10 @@ def borrar_trabajador(id_trabajador: int, db: Session = Depends(get_db)):
 @router.get("/supervisor/{id_supervisor}", response_model=list[TrabajadorResponse])
 def listar_trabajadores_por_supervisor(id_supervisor: int, db: Session = Depends(get_db)):
     return trabajador_servicio.obtener_trabajadores_por_supervisor(db, id_supervisor)
+
+# --------------------------------------------------
+# LISTAR TRABAJADORES DE UN SUPERVISOR NO ASIGNADOS
+# --------------------------------------------------
+@router.get("/supervisor/{id_supervisor}/no-asignados", response_model=list[TrabajadorResponse])
+def listar_trabajadores_no_asignados(id_supervisor: int, db: Session = Depends(get_db)):
+    return trabajador_servicio.obtener_trabajadores_no_asignados(db, id_supervisor)
