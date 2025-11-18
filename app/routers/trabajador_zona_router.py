@@ -1,12 +1,25 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
-from app.esquemas.trabajador_zona_esquema import TrabajadorZonaCreate, TrabajadorZonaResponse
-from app.servicios import trabajador_zona_servicio
+
+from app.servicios.trabajador_zona_servicio import (
+    crear_trabajador_zona,
+    obtener_trabajador_zonas,
+    obtener_trabajador_zona_por_id,
+    eliminar_fisico_trabajador_zona,
+    eliminar_logico_trabajador_zona,
+    obtener_zonas_con_detalles_por_supervisor
+)
+
+from app.esquemas.trabajador_zona_esquema import (
+    TrabajadorZonaCreate,
+    TrabajadorZonaResponse
+)
+from app.esquemas.trabajador_zona_esquema import ZonaDetallesResponse
+
 
 router = APIRouter(prefix="/trabajador_zonas", tags=["Trabajador - Zonas"])
 
-# Dependencia para obtener la sesión de BD
 def get_db():
     db = SessionLocal()
     try:
@@ -14,14 +27,44 @@ def get_db():
     finally:
         db.close()
 
+@router.get("/supervisor/{id_supervisor}", response_model=list[ZonaDetallesResponse])
+def listar_zonas_por_supervisor(id_supervisor: int, db: Session = Depends(get_db)):
+    return obtener_zonas_con_detalles_por_supervisor(db, id_supervisor)
+
+
+# ===========================
+# 📌 CRUD
+# ===========================
+
 @router.post("/", response_model=TrabajadorZonaResponse)
-def crear_trabajador_zona(asignacion: TrabajadorZonaCreate, db: Session = Depends(get_db)):
-    return trabajador_zona_servicio.crear_trabajador_zona(db, asignacion)
+def crear(asignacion: TrabajadorZonaCreate, db: Session = Depends(get_db)):
+    return crear_trabajador_zona(db, asignacion)
+
 
 @router.get("/", response_model=list[TrabajadorZonaResponse])
-def listar_trabajador_zonas(db: Session = Depends(get_db)):
-    return trabajador_zona_servicio.obtener_trabajador_zonas(db)
+def listar(db: Session = Depends(get_db)):
+    return obtener_trabajador_zonas(db)
+
 
 @router.get("/{asignacion_id}", response_model=TrabajadorZonaResponse)
-def obtener_trabajador_zona(asignacion_id: int, db: Session = Depends(get_db)):
-    return trabajador_zona_servicio.obtener_trabajador_zona_por_id(db, asignacion_id)
+def obtener(asignacion_id: int, db: Session = Depends(get_db)):
+    asignacion = obtener_trabajador_zona_por_id(db, asignacion_id)
+    if not asignacion:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    return asignacion
+
+
+@router.delete("/{asignacion_id}")
+def eliminar_fisico(asignacion_id: int, db: Session = Depends(get_db)):
+    ok = eliminar_fisico_trabajador_zona(db, asignacion_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    return {"mensaje": "Asignación eliminada físicamente"}
+
+
+@router.put("/eliminar-logico/{asignacion_id}", response_model=TrabajadorZonaResponse)
+def eliminar_logico(asignacion_id: int, db: Session = Depends(get_db)):
+    asignacion = eliminar_logico_trabajador_zona(db, asignacion_id)
+    if not asignacion:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    return asignacion
