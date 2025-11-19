@@ -7,6 +7,11 @@ from app.modelos.inspector import Inspector
 from app.modelos.registrosupervisorinspector import RegistroSupervisorInspector
 from app.esquemas.inspector_esquema import InspectorCreate, LoginInspector
 from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contrasena
+from app.modelos.inspector_zona import InspectorZona
+from app.modelos.zona_modelo import Zona
+from app.modelos.trabajador_zona import TrabajadorZona
+from app.modelos.trabajador import Trabajador
+from app.modelos.camara_modelo import Camara
 
 # --- Crear Inspector (Persona + Inspector + RegistroSupervisorInspector) ---
 def crear_inspector(db: Session, datos: InspectorCreate):
@@ -234,6 +239,52 @@ def listar_inspectores_por_supervisor(db: Session, id_supervisor: int):
             "frecuenciaVisita": inspector.frecuenciaVisita,
             "borrado": inspector.borrado,
             "fecha_asignacion": registro.fecha_asignacion
+        })
+
+    return resultado
+
+def obtener_zonas_por_inspector(db: Session, id_inspector: int):
+    zonas = (
+        db.query(InspectorZona, Zona)
+        .join(Zona, InspectorZona.id_zona_inspectorzona == Zona.id_Zona)
+        .filter(
+            InspectorZona.id_inspector_inspectorzona == id_inspector,
+            InspectorZona.borrado == True
+        )
+        .all()
+    )
+
+    resultado = []
+    for asignacion, zona in zonas:
+
+        # ➤ Contar trabajadores en la zona
+        total_trabajadores = (
+            db.query(TrabajadorZona)
+            .filter(
+                TrabajadorZona.id_zona_trabajadorzona == zona.id_Zona,
+                TrabajadorZona.borrado == True
+            )
+            .count()
+        )
+
+        # ➤ Contar cámaras activas en la zona
+        total_camaras = (
+            db.query(Camara)
+            .filter(
+                Camara.id_zona == zona.id_Zona,
+                Camara.borrado == True
+            )
+            .count()
+        )
+
+        resultado.append({
+            "id_Zona": zona.id_Zona,
+            "nombreZona": zona.nombreZona,
+            "latitud": zona.latitud,
+            "longitud": zona.longitud,
+            "fecha_asignacion": asignacion.fecha_asignacion.isoformat(),
+            "total_trabajadores": total_trabajadores,
+            "total_camaras": total_camaras
         })
 
     return resultado

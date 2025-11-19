@@ -40,3 +40,15 @@ class InspectorResponse(BaseModel):
 class LoginInspector(BaseModel):
     correo: EmailStr
     contrasena: str
+
+class ZonaAsignadaInspector(BaseModel):
+    id_Zona: int
+    nombreZona: str
+    latitud: str
+    longitud: str
+    fecha_asignacion: str
+    total_trabajadores: int
+    total_camaras: int
+
+    class Config:
+        orm_mode = True
