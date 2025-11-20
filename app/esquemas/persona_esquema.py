@@ -13,6 +13,9 @@ class PersonaBase(BaseModel):
     fecha_nacimiento: date
     borrado: Optional[bool] = True
 
+class FotoUpdate(BaseModel):
+    fotoBase64: str
+
 class PersonaCreate(PersonaBase):
     contrasena: str
     foto: Optional[bytes] = None  

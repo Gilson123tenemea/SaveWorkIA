@@ -3,6 +3,11 @@ from datetime import date
 from typing import Optional
 
 # --- Datos de Persona ---
+class SupervisorPerfilUpdate(BaseModel):
+    nombre: str
+    correo: EmailStr
+    telefono: str
+
 class PersonaBase(BaseModel):
     cedula: str
     nombre: str

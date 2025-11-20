@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+import base64 
 from datetime import date
 from app.modelos.empresa_modelo import Empresa
 from app.modelos.supervisor import Supervisor
@@ -217,3 +218,85 @@ def obtener_empresa_por_supervisor(db: Session, id_supervisor: int):
         raise HTTPException(status_code=404, detail="Empresa no encontrada o inactiva")
 
     return empresa
+
+def obtener_perfil_supervisor(db: Session, id_supervisor: int):
+    supervisor = db.query(Supervisor).filter(
+        Supervisor.id_supervisor == id_supervisor,
+        Supervisor.borrado == True
+    ).first()
+
+    if not supervisor:
+        raise HTTPException(404, "Supervisor no encontrado")
+
+    persona = db.query(Persona).filter(
+        Persona.id_persona == supervisor.id_persona_supervisor
+    ).first()
+
+    if not persona:
+        raise HTTPException(404, "Persona no encontrada")
+
+    empresa = db.query(Empresa).filter(
+        Empresa.id_Empresa == supervisor.id_empresa_supervisor
+    ).first()
+
+    return {
+        "id_supervisor": supervisor.id_supervisor,
+        "id_persona": persona.id_persona,
+        "nombre": persona.nombre,
+        "apellido": persona.apellido,
+        "telefono": persona.telefono,
+        "correo": persona.correo,
+        "direccion": persona.direccion,
+        "genero": persona.genero,
+        "fecha_nacimiento": persona.fecha_nacimiento.isoformat(),
+        "foto": base64.b64encode(persona.foto).decode() if persona.foto else None,
+        "especialidad_seguridad": supervisor.especialidad_seguridad,
+        "experiencia": supervisor.experiencia,
+        "empresa": {
+            "nombre": empresa.nombreEmpresa,
+            "ruc": empresa.ruc,
+            "direccion": empresa.direccion,
+            "telefono": empresa.telefono,
+        }
+    }
+
+def actualizar_perfil_supervisor(db: Session, id_supervisor: int, datos):
+    supervisor = db.query(Supervisor).filter(
+        Supervisor.id_supervisor == id_supervisor,
+        Supervisor.borrado == True
+    ).first()
+
+    if not supervisor:
+        raise HTTPException(status_code=404, detail="Supervisor no encontrado")
+
+    persona = db.query(Persona).filter(
+        Persona.id_persona == supervisor.id_persona_supervisor,
+        Persona.borrado == True
+    ).first()
+
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona no encontrada")
+
+    # Validar correo repetido
+    correo_existente = db.query(Persona).filter(
+        Persona.correo == datos.correo,
+        Persona.id_persona != persona.id_persona
+    ).first()
+
+    if correo_existente:
+        raise HTTPException(400, "El correo ya está en uso")
+
+    # Actualizar campos editables
+    persona.nombre = datos.nombre
+    persona.correo = datos.correo
+    persona.telefono = datos.telefono
+
+    db.commit()
+    db.refresh(persona)
+
+    return {
+        "mensaje": "Perfil actualizado correctamente",
+        "nombre": persona.nombre,
+        "correo": persona.correo,
+        "telefono": persona.telefono
+    }

@@ -1,6 +1,8 @@
 # app/modelos/persona_modelo.py
-from sqlalchemy import Column, Integer, String, Boolean, Date, LargeBinary
+from sqlalchemy import Column, Integer, String, Boolean, Date
+from sqlalchemy.dialects.mysql import LONGBLOB   # <-- IMPORTANTE
 from app.config import Base
+
 
 class Persona(Base):
     __tablename__ = "personas"
@@ -14,7 +16,7 @@ class Persona(Base):
     direccion = Column(String(350), nullable=False)
     genero = Column(String(20), nullable=False)
     fecha_nacimiento = Column(Date, nullable=False)
-    foto = Column(LargeBinary, nullable=True) 
+    foto = Column(LONGBLOB, nullable=True)   # <-- AHORA SÍ FUNCIONA
     contrasena = Column(String(255), nullable=False)
     rol = Column(String(50), nullable=False)
     borrado = Column(Boolean, default=True)
