@@ -95,6 +95,6 @@ def obtener_perfil(id_supervisor: int, db: Session = Depends(get_db)):
 # ACTUALIZAR PERFIL (NOMBRE, CORREO, TELÉFONO)
 # ============================
 @router.put("/perfil/{id_supervisor}")
-def actualizar_perfil(id_supervisor: int, request: SupervisorUpdate, db: Session = Depends(get_db)):
-    return actualizar_perfil_supervisor(db, id_supervisor, request)
-
+async def actualizar_perfil(id_supervisor: int, request: dict, db: Session = Depends(get_db)):
+    print("🚨 BODY RECIBIDO:", request)
+    return {"ok": True}
