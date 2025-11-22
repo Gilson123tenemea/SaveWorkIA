@@ -9,15 +9,107 @@ from app.modelos.supervisor import Supervisor
 from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor, SupervisorUpdate
 from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contrasena
 
+from app.Validaciones.validacion_usuario import (
+    validar_cedula_ecuatoriana,
+    validar_cedula_unica,
+    validar_nombre,
+    validar_apellido,
+    validar_telefono,
+    validar_correo_formato,
+    validar_correo_unico,
+    validar_direccion,
+    validar_genero,
+    validar_fecha_nacimiento,
+    validar_especialidad,
+    validar_experiencia,
+    validar_contrasena
+)
 
-# --- Crear supervisor + persona ---
 def crear_supervisor(db: Session, datos: SupervisorCreate):
-    if db.query(Persona).filter(Persona.cedula == datos.persona.cedula).first():
-        raise HTTPException(status_code=400, detail="La cédula ya está registrada")
-    if db.query(Persona).filter(Persona.correo == datos.persona.correo).first():
-        raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
-    # 🔒 Encriptar la contraseña
+    # ========================================================
+    # 1️⃣ VALIDAR QUE LA EMPRESA NO TENGA YA UN SUPERVISOR ACTIVO
+    # ========================================================
+    supervisor_existente = db.query(Supervisor).filter(
+        Supervisor.id_empresa_supervisor == datos.id_empresa_supervisor,
+        Supervisor.borrado == True
+    ).first()
+
+    if supervisor_existente:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta empresa ya tiene un supervisor asignado"
+        )
+
+    # ========================================================
+    # 2️⃣ BUSCAR PERSONA POR CÉDULA (ACTIVA O INACTIVA)
+    # ========================================================
+    persona_existente = db.query(Persona).filter(
+        Persona.cedula == datos.persona.cedula
+    ).first()
+
+    # ========================================================
+    # 3️⃣ SI EXISTE Y ESTÁ ACTIVA → NO PERMITIR DUPLICADOS
+    # ========================================================
+    if persona_existente and persona_existente.borrado is True:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una persona activa con esta cédula"
+        )
+
+    # ========================================================
+    # 4️⃣ SI EXISTE Y ESTÁ INACTIVA → REACTIVAR
+    # ========================================================
+    if persona_existente and persona_existente.borrado is False:
+
+        # 🔄 Reactivar PERSONA
+        persona_existente.nombre = datos.persona.nombre
+        persona_existente.apellido = datos.persona.apellido
+        persona_existente.telefono = datos.persona.telefono
+        persona_existente.correo = datos.persona.correo
+        persona_existente.direccion = datos.persona.direccion
+        persona_existente.genero = datos.persona.genero
+        persona_existente.fecha_nacimiento = datos.persona.fecha_nacimiento
+        persona_existente.contrasena = encriptar_contrasena(datos.persona.contrasena)
+        persona_existente.rol = "supervisor"
+        persona_existente.borrado = True  # ACTIVAR
+
+        # 🔄 Reactivar SUPERVISOR (si existía)
+        supervisor = db.query(Supervisor).filter(
+            Supervisor.id_persona_supervisor == persona_existente.id_persona
+        ).first()
+
+        if supervisor:
+            supervisor.especialidad_seguridad = datos.especialidad_seguridad
+            supervisor.experiencia = datos.experiencia
+            supervisor.id_empresa_supervisor = datos.id_empresa_supervisor
+            supervisor.borrado = True
+        else:
+            # Si no tenía supervisor antes, se crea nuevo
+            nuevo_supervisor = Supervisor(
+                especialidad_seguridad=datos.especialidad_seguridad,
+                experiencia=datos.experiencia,
+                id_persona_supervisor=persona_existente.id_persona,
+                id_empresa_supervisor=datos.id_empresa_supervisor,
+                borrado=True
+            )
+            db.add(nuevo_supervisor)
+
+        db.commit()
+
+        return {
+            "mensaje": "Supervisor reactivado correctamente",
+            "id_persona": persona_existente.id_persona
+        }
+
+    # ========================================================
+    # 5️⃣ SI NO EXISTE → CREAR NORMAL
+    # ========================================================
+    validar_cedula_ecuatoriana(datos.persona.cedula)
+    validar_cedula_unica(db, datos.persona.cedula)
+    validar_correo_formato(datos.persona.correo)
+    validar_correo_unico(db, datos.persona.correo)
+
     contrasena_encriptada = encriptar_contrasena(datos.persona.contrasena)
 
     nueva_persona = Persona(
@@ -49,15 +141,26 @@ def crear_supervisor(db: Session, datos: SupervisorCreate):
     db.refresh(nuevo_supervisor)
 
     return {
+        "mensaje": "Supervisor registrado correctamente",
         "id_supervisor": nuevo_supervisor.id_supervisor,
-        "id_persona": nueva_persona.id_persona,
-        "nombre": nueva_persona.nombre,
-        "apellido": nueva_persona.apellido,
-        "correo": nueva_persona.correo,
-        "especialidad_seguridad": nuevo_supervisor.especialidad_seguridad,
-        "experiencia": nuevo_supervisor.experiencia,
-        "borrado": nuevo_supervisor.borrado
+        "id_persona": nueva_persona.id_persona
     }
+
+# ======================================================
+# 🔎 VALIDAR CÉDULA — CONSULTA SI EXISTE Y ESTÁ ACTIVA
+# ======================================================
+def cedula_existe_activa(db: Session, cedula: str):
+    persona = db.query(Persona).filter(Persona.cedula == cedula).first()
+
+    if not persona:
+        return False  # No existe → libre para usar
+
+    # Existe pero está inactiva (borrado = False)
+    if persona.borrado is False:
+        return False  # Se puede volver a usar
+
+    # Existe y está activa (borrado = True)
+    return True  # No se puede usar
 
 # --- Listar supervisores activos (borrado=True) ---
 def listar_supervisores_activos(db: Session):
@@ -149,7 +252,9 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
         "rol": persona.rol
     }
 
+
 def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
+
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_supervisor == id_supervisor,
         Supervisor.borrado == True
@@ -166,8 +271,33 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     if not persona:
         raise HTTPException(status_code=404, detail="Persona asociada no encontrada o inactiva")
 
-    # 🔒 Si se envía una nueva contraseña, encriptarla
-    if datos.persona.contrasena:
+    # --- VALIDACIONES PERSONA ---
+    validar_cedula_ecuatoriana(datos.persona.cedula)
+
+    # Evitar que su propia cédula marque duplicado
+    if datos.persona.cedula != persona.cedula:
+        validar_cedula_unica(db, datos.persona.cedula)
+
+    validar_nombre(datos.persona.nombre)
+    validar_apellido(datos.persona.apellido)
+    validar_telefono(datos.persona.telefono)
+
+    validar_correo_formato(datos.persona.correo)
+
+    if datos.persona.correo != persona.correo:
+        validar_correo_unico(db, datos.persona.correo)
+
+    validar_direccion(datos.persona.direccion)
+    validar_genero(datos.persona.genero)
+    validar_fecha_nacimiento(datos.persona.fecha_nacimiento)
+
+    # --- VALIDACIONES SUPERVISOR ---
+    validar_especialidad(datos.especialidad_seguridad)
+    validar_experiencia(datos.experiencia)
+
+    # --- VALIDACIÓN DE CONTRASEÑA SOLO SI SE ENVÍA ---
+    if datos.persona.contrasena and datos.persona.contrasena.strip() != "":
+        validar_contrasena(datos.persona.contrasena)
         persona.contrasena = encriptar_contrasena(datos.persona.contrasena)
 
     # --- Actualizar datos de persona ---
@@ -260,6 +390,7 @@ def obtener_perfil_supervisor(db: Session, id_supervisor: int):
         }
     }
 
+
 def actualizar_perfil_supervisor(db: Session, id_supervisor: int, datos):
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_supervisor == id_supervisor,
@@ -300,3 +431,20 @@ def actualizar_perfil_supervisor(db: Session, id_supervisor: int, datos):
         "correo": persona.correo,
         "telefono": persona.telefono
     }
+
+def listar_empresas_sin_supervisor(db: Session):
+    # Empresas activas
+    empresas = db.query(Empresa).filter(Empresa.borrado == True).all()
+
+    empresas_disponibles = []
+
+    for empresa in empresas:
+        supervisor = db.query(Supervisor).filter(
+            Supervisor.id_empresa_supervisor == empresa.id_Empresa,
+            Supervisor.borrado == True
+        ).first()
+
+        if not supervisor:  # ⇦ ESTA empresa no tiene supervisor asignado
+            empresas_disponibles.append(empresa)
+
+    return empresas_disponibles

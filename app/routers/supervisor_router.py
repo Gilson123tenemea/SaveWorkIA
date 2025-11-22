@@ -34,6 +34,16 @@ def get_db():
     finally:
         db.close()
 
+# ============================
+# VALIDAR CÉDULA (EN TIEMPO REAL)
+# ============================
+@router.get("/validar-cedula/{cedula}")
+def validar_cedula_supervisor(cedula: str, db: Session = Depends(get_db)):
+    from app.servicios.supervisor_servicio import cedula_existe_activa
+    
+    existe = cedula_existe_activa(db, cedula)
+    return {"existe": existe}
+
 
 # ============================
 # REGISTRO
@@ -98,3 +108,8 @@ def obtener_perfil(id_supervisor: int, db: Session = Depends(get_db)):
 async def actualizar_perfil(id_supervisor: int, request: dict, db: Session = Depends(get_db)):
     print("🚨 BODY RECIBIDO:", request)
     return {"ok": True}
+
+@router.get("/empresas-disponibles", response_model=list[EmpresaResponse])
+def obtener_empresas_sin_supervisor(db: Session = Depends(get_db)):
+    from app.servicios.supervisor_servicio import listar_empresas_sin_supervisor
+    return listar_empresas_sin_supervisor(db)
