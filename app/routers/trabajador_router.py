@@ -20,6 +20,12 @@ def get_db():
     finally:
         db.close()
 
+@router.get("/validar-codigo/{codigo}")
+def validar_codigo(codigo: str, db: Session = Depends(get_db)):
+    from app.servicios.trabajador_servicio import codigo_existe_activo
+
+    existe = codigo_existe_activo(db, codigo)
+    return {"existe": existe}
 
 # --------------------------------------------------
 # CREAR PERSONA + TRABAJADOR
@@ -28,6 +34,20 @@ def get_db():
 def crear_trabajador(data: TrabajadorPersonaCreate, db: Session = Depends(get_db)):
     return trabajador_servicio.crear_trabajador_completo(db, data)
 
+@router.get("/validar-correo/{correo}")
+def validar_correo_trabajador(correo: str, db: Session = Depends(get_db)):
+    from app.servicios.trabajador_servicio import correo_existe_activo
+
+    existe = correo_existe_activo(db, correo)
+    return {"existe": existe}
+
+
+@router.get("/validar-cedula/{cedula}")
+def validar_cedula_supervisor(cedula: str, db: Session = Depends(get_db)):
+    from app.servicios.trabajador_servicio import cedula_existe_activa
+    
+    existe = cedula_existe_activa(db, cedula)
+    return {"existe": existe}
 
 # --------------------------------------------------
 # LISTAR

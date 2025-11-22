@@ -220,3 +220,46 @@ def validar_frecuencia_visita(freq: str):
 
     if len(freq) > 30:
         raise HTTPException(status_code=400, detail="La frecuencia de visita no puede superar los 30 caracteres")
+
+def validar_cargo(cargo: str):
+    campo_obligatorio(cargo, "cargo")
+
+    patron = r"^[A-Za-zÁÉÍÓÚáéíóúñÑ ]{3,50}$"
+    if not re.match(patron, cargo):
+        raise HTTPException(400, "El cargo solo puede contener letras y espacios (3–50 caracteres)")
+
+def validar_area_trabajo(area: str):
+    campo_obligatorio(area, "área de trabajo")
+
+    patron = r"^[A-Za-z0-9ÁÉÍÓÚáéíóúñÑ ]{3,50}$"
+    if not re.match(patron, area):
+        raise HTTPException(400, "El área de trabajo solo puede contener letras, números y espacios (3–50 caracteres)")
+
+def validar_implementos(impl: str):
+    campo_obligatorio(impl, "implementos de seguridad")
+
+    if len(impl) < 3:
+        raise HTTPException(400, "Los implementos deben tener mínimo 3 caracteres")
+
+def validar_estado_trabajador(estado):
+    # Si es booleano → convertirlo correctamente
+    if isinstance(estado, bool):
+        return  # válido (True/False)
+
+    # Si llega string → validar como antes
+    if estado not in ["activo", "inactivo"]:
+        raise HTTPException(
+            status_code=400,
+            detail="El estado debe ser 'activo' o 'inactivo'"
+        )
+
+
+def validar_codigo_trabajador(codigo: str):
+    campo_obligatorio(codigo, "código trabajador")
+
+    patron = r"^TRA-\d{3}$"
+    if not re.match(patron, codigo):
+        raise HTTPException(
+            400,
+            "El código debe tener el formato TRA-001"
+        )

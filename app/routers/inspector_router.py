@@ -13,10 +13,10 @@ def get_db():
         yield db
     finally:
         db.close()
-        
+
 @router.get("/validar-cedula/{cedula}")
 def validar_cedula_supervisor(cedula: str, db: Session = Depends(get_db)):
-    from app.servicios.supervisor_servicio import cedula_existe_activa
+    from app.servicios.inspector_servicio import cedula_existe_activa
     
     existe = cedula_existe_activa(db, cedula)
     return {"existe": existe}
