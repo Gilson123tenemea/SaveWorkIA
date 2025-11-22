@@ -30,3 +30,16 @@ class ZonaResponse(ZonaBase):
 
     class Config:
         orm_mode = True
+
+class ZonaConDetalles(BaseModel):
+    id_Zona: int
+    nombreZona: str
+    latitud: str
+    longitud: str
+    id_empresa_zona: int
+
+    total_camaras: int
+    total_trabajadores: int
+
+    class Config:
+        orm_mode = True

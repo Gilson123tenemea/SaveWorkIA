@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.zona_esquema import ZonaCreate, ZonaResponse, ZonaUpdate
 from app.servicios import zona_servicio
+from app.esquemas.zona_esquema import ZonaConDetalles
+
 
 router = APIRouter(prefix="/zonas", tags=["Zonas"])
 
@@ -32,17 +34,10 @@ def listar_zonas(
     """
     return zona_servicio.obtener_zonas(db, skip, limit)
 
-@router.get("/empresa/{empresa_id}", response_model=list[ZonaResponse])
-def listar_zonas_por_empresa(
-    empresa_id: int,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    db: Session = Depends(get_db)
-):
-    """
-    Lista todas las zonas de una empresa específica
-    """
-    return zona_servicio.obtener_zonas_por_empresa(db, empresa_id, skip, limit)
+@router.get("/empresa/{empresa_id}", response_model=list[ZonaConDetalles])
+def listar_zonas_por_empresa(empresa_id: int, db: Session = Depends(get_db)):
+    return zona_servicio.obtener_zonas_por_empresa_con_detalles(db, empresa_id)
+
 
 @router.get("/administrador/{administrador_id}", response_model=list[ZonaResponse])
 def listar_zonas_por_administrador(

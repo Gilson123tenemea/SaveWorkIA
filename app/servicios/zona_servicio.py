@@ -2,7 +2,9 @@ from sqlalchemy.orm import Session
 from app.modelos.zona_modelo import Zona
 from app.esquemas.zona_esquema import ZonaCreate, ZonaUpdate
 from fastapi import HTTPException, status
-
+from app.modelos.camara_modelo import Camara
+from app.modelos.trabajador_zona import TrabajadorZona
+from sqlalchemy import func
 
 def crear_zona(db: Session, zona: ZonaCreate):
     """
@@ -40,18 +42,40 @@ def obtener_zonas(db: Session, skip: int = 0, limit: int = 100):
     )
 
 
-def obtener_zonas_por_empresa(db: Session, empresa_id: int, skip: int = 0, limit: int = 100):
-    """
-    Obtiene todas las zonas de una empresa específica
-    """
-    return (
-        db.query(Zona)
-        .filter(Zona.id_empresa_zona == empresa_id, Zona.borrado == True)
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+def obtener_zonas_por_empresa_con_detalles(db: Session, empresa_id: int):
+    zonas = db.query(Zona).filter(
+        Zona.id_empresa_zona == empresa_id,
+        Zona.borrado == True
+    ).all()
 
+    respuesta = []
+
+    for zona in zonas:
+
+        # 🔹 Total cámaras en esta zona
+        total_camaras = db.query(func.count(Camara.id_camara)).filter(
+            Camara.id_zona == zona.id_Zona,
+            Camara.borrado == True
+        ).scalar()
+
+        # 🔹 Total trabajadores asignados a esta zona
+        total_trabajadores = db.query(func.count(TrabajadorZona.id_trabajador_zona)).filter(
+            TrabajadorZona.id_zona_trabajadorzona == zona.id_Zona,
+            TrabajadorZona.borrado == True
+        ).scalar()
+
+        respuesta.append({
+            "id_Zona": zona.id_Zona,
+            "nombreZona": zona.nombreZona,
+            "latitud": zona.latitud,
+            "longitud": zona.longitud,
+            "id_empresa_zona": zona.id_empresa_zona,
+
+            "total_camaras": total_camaras,
+            "total_trabajadores": total_trabajadores
+        })
+
+    return respuesta
 
 def obtener_zonas_por_administrador(db: Session, administrador_id: int, skip: int = 0, limit: int = 100):
     """
