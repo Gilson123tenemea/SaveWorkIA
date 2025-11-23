@@ -3,16 +3,22 @@ from app.modelos.empresa_modelo import Empresa
 from app.esquemas.empresa_esquema import EmpresaCreate, EmpresaUpdate
 from fastapi import HTTPException, status
 
+from app.Validaciones.empresa_validaciones import (
+    validar_nombre_empresa,
+    validar_telefono_empresa,
+    validar_ruc_empresa,
+    validar_correo_unico,
+    validar_ruc_unico
+)
+
 def crear_empresa(db: Session, empresa: EmpresaCreate):
-    """
-    Crea una nueva empresa en la base de datos
-    """
-    empresa_existente = db.query(Empresa).filter(Empresa.ruc == empresa.ruc).first()
-    if empresa_existente:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El RUC ya está registrado"
-        )
+
+    # 🔎 VALIDACIONES
+    validar_nombre_empresa(empresa.nombreEmpresa)
+    validar_telefono_empresa(empresa.telefono)
+    validar_ruc_empresa(empresa.ruc)
+    validar_ruc_unico(db, empresa.ruc)
+    validar_correo_unico(db, empresa.correo)
 
     nueva_empresa = Empresa(
         nombreEmpresa=empresa.nombreEmpresa,
@@ -47,14 +53,31 @@ def obtener_empresa_por_ruc(db: Session, ruc: str):
 
 def actualizar_empresa(db: Session, empresa_id: int, empresa_update: EmpresaUpdate):
     empresa = obtener_empresa_por_id(db, empresa_id)
+
+    # Si edita → validar nombre, teléfono y correo
+    if empresa_update.nombreEmpresa:
+        validar_nombre_empresa(empresa_update.nombreEmpresa)
+
+    if empresa_update.telefono:
+        validar_telefono_empresa(empresa_update.telefono)
+
+    if empresa_update.correo:
+        validar_correo_unico(db, empresa_update.correo)
+
+    # ❌ RUC bloqueado (NO se debe actualizar)
+    if empresa_update.ruc:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede modificar el RUC de una empresa"
+        )
+
     for campo, valor in empresa_update.dict(exclude_unset=True).items():
-        if campo == "id_Administrador":
-            setattr(empresa, "id_administrador_empresa", valor)
-        else:
-            setattr(empresa, campo, valor)
+        setattr(empresa, campo, valor)
+
     db.commit()
     db.refresh(empresa)
     return empresa
+
 
 def eliminar_empresa(db: Session, empresa_id: int):
     empresa = obtener_empresa_por_id(db, empresa_id)
