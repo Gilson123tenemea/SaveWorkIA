@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 from app.modelos.empresa_modelo import Empresa
 from app.esquemas.empresa_esquema import EmpresaCreate, EmpresaUpdate
 from fastapi import HTTPException, status
+from app.modelos.zona_modelo import Zona
+
 
 from app.Validaciones.empresa_validaciones import (
     validar_nombre_empresa,
@@ -78,11 +80,25 @@ def actualizar_empresa(db: Session, empresa_id: int, empresa_update: EmpresaUpda
     db.refresh(empresa)
     return empresa
 
-
 def eliminar_empresa(db: Session, empresa_id: int):
     empresa = obtener_empresa_por_id(db, empresa_id)
+
+    # 🔍 Verificar si tiene zonas activas asociadas
+    zonas_asociadas = db.query(Zona).filter(
+        Zona.id_empresa_zona == empresa_id,
+        Zona.borrado == True
+    ).all()
+
+    if zonas_asociadas and len(zonas_asociadas) > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta empresa tiene zonas registradas. Elimínelas antes de continuar."
+        )
+
+    # ✔ Si no tiene zonas → eliminar (borrado lógico)
     empresa.borrado = False
     db.commit()
+
     return {"message": "Empresa eliminada correctamente"}
 
 def eliminar_empresa_permanente(db: Session, empresa_id: int):

@@ -6,13 +6,10 @@ class ZonaBase(BaseModel):
     nombreZona: str
     latitud: str
     longitud: str
-    borrado: Optional[bool] = True
-
 
 class ZonaCreate(ZonaBase):
     id_empresa_zona: int
     id_administrador_zona: int
-
 
 class ZonaUpdate(BaseModel):
     nombreZona: Optional[str] = None
@@ -20,13 +17,12 @@ class ZonaUpdate(BaseModel):
     longitud: Optional[str] = None
     id_empresa_zona: Optional[int] = None
     id_administrador_zona: Optional[int] = None
-    borrado: Optional[bool] = None
-
 
 class ZonaResponse(ZonaBase):
     id_Zona: int
     id_empresa_zona: int
     id_administrador_zona: int
+    borrado: bool
 
     class Config:
         orm_mode = True
@@ -37,7 +33,6 @@ class ZonaConDetalles(BaseModel):
     latitud: str
     longitud: str
     id_empresa_zona: int
-
     total_camaras: int
     total_trabajadores: int
 

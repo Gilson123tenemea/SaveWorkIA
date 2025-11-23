@@ -6,32 +6,53 @@ from app.modelos.camara_modelo import Camara
 from app.modelos.trabajador_zona import TrabajadorZona
 from sqlalchemy import func
 
+# 🔹 Importar las validaciones nuevas
+from app.Validaciones.zona_validaciones import (
+    validar_nombre_zona,
+    validar_coordenada
+)
+
+
 def crear_zona(db: Session, zona: ZonaCreate):
     """
-    Crea una nueva zona en la base de datos
+    Crea una nueva zona en la base de datos.
+    Solo prohíbe crear si existe una zona activa (borrado=True).
+    Si existe una zona con el mismo nombre pero borrada (False), sí se permite crear.
     """
-    # Verificar si ya existe una zona con el mismo nombre en la misma empresa
+
+    # ============================
+    # 🔍 VALIDACIONES NUEVAS
+    # ============================
+    validar_nombre_zona(zona.nombreZona)
+    validar_coordenada(zona.latitud, "latitud")
+    validar_coordenada(zona.longitud, "longitud")
+
     zona_existente = db.query(Zona).filter(
         Zona.nombreZona == zona.nombreZona,
         Zona.id_empresa_zona == zona.id_empresa_zona
     ).first()
 
-    if zona_existente:
+    # ❌ Ya existe una zona activa → NO permitir
+    if zona_existente and zona_existente.borrado is True:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe una zona con ese nombre en esta empresa"
+            detail="Ya existe una zona activa con ese nombre en esta empresa"
         )
 
     nueva_zona = Zona(**zona.dict())
+    nueva_zona.borrado = True  # siempre crear activa
+
     db.add(nueva_zona)
     db.commit()
     db.refresh(nueva_zona)
+
     return nueva_zona
+
 
 
 def obtener_zonas(db: Session, skip: int = 0, limit: int = 100):
     """
-    Obtiene todas las zonas (no borradas por defecto)
+    Obtiene todas las zonas activas (borrado=True)
     """
     return (
         db.query(Zona)
@@ -40,6 +61,7 @@ def obtener_zonas(db: Session, skip: int = 0, limit: int = 100):
         .limit(limit)
         .all()
     )
+
 
 
 def obtener_zonas_por_empresa_con_detalles(db: Session, empresa_id: int):
@@ -51,14 +73,11 @@ def obtener_zonas_por_empresa_con_detalles(db: Session, empresa_id: int):
     respuesta = []
 
     for zona in zonas:
-
-        # 🔹 Total cámaras en esta zona
         total_camaras = db.query(func.count(Camara.id_camara)).filter(
             Camara.id_zona == zona.id_Zona,
             Camara.borrado == True
         ).scalar()
 
-        # 🔹 Total trabajadores asignados a esta zona
         total_trabajadores = db.query(func.count(TrabajadorZona.id_trabajador_zona)).filter(
             TrabajadorZona.id_zona_trabajadorzona == zona.id_Zona,
             TrabajadorZona.borrado == True
@@ -77,10 +96,9 @@ def obtener_zonas_por_empresa_con_detalles(db: Session, empresa_id: int):
 
     return respuesta
 
+
+
 def obtener_zonas_por_administrador(db: Session, administrador_id: int, skip: int = 0, limit: int = 100):
-    """
-    Obtiene todas las zonas asignadas a un administrador
-    """
     return (
         db.query(Zona)
         .filter(Zona.id_administrador_zona == administrador_id, Zona.borrado == True)
@@ -90,10 +108,8 @@ def obtener_zonas_por_administrador(db: Session, administrador_id: int, skip: in
     )
 
 
+
 def obtener_zona_por_id(db: Session, zona_id: int):
-    """
-    Obtiene una zona por su ID
-    """
     zona = db.query(Zona).filter(Zona.id_Zona == zona_id).first()
     if not zona:
         raise HTTPException(
@@ -103,13 +119,22 @@ def obtener_zona_por_id(db: Session, zona_id: int):
     return zona
 
 
+
 def actualizar_zona(db: Session, zona_id: int, zona_update: ZonaUpdate):
-    """
-    Actualiza los datos de una zona
-    """
     zona = obtener_zona_por_id(db, zona_id)
 
-    # Actualizar solo los campos que no son None
+    # ============================
+    # 🔍 VALIDACIONES NUEVAS EN UPDATE (solo si vienen)
+    # ============================
+    if zona_update.nombreZona is not None:
+        validar_nombre_zona(zona_update.nombreZona)
+
+    if zona_update.latitud is not None:
+        validar_coordenada(zona_update.latitud, "latitud")
+
+    if zona_update.longitud is not None:
+        validar_coordenada(zona_update.longitud, "longitud")
+
     for campo, valor in zona_update.dict(exclude_unset=True).items():
         setattr(zona, campo, valor)
 
@@ -118,19 +143,37 @@ def actualizar_zona(db: Session, zona_id: int, zona_update: ZonaUpdate):
     return zona
 
 
+
 def eliminar_zona(db: Session, zona_id: int):
     """
-    Eliminación lógica de una zona (marca borrado = False)
+    Eliminación lógica de una zona (borrado=False)
+    No se puede eliminar si tiene cámaras activas.
     """
+
     zona = obtener_zona_por_id(db, zona_id)
+
+    # ❌ Validar cámaras activas
+    total_camaras = db.query(func.count(Camara.id_camara)).filter(
+        Camara.id_zona == zona_id,
+        Camara.borrado == True
+    ).scalar()
+
+    if total_camaras > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar esta zona porque tiene cámaras registradas."
+        )
+
     zona.borrado = False
     db.commit()
+
     return {"message": "Zona eliminada correctamente"}
+
 
 
 def eliminar_zona_permanente(db: Session, zona_id: int):
     """
-    Eliminación física de una zona de la base de datos
+    Eliminación física definitiva.
     """
     zona = obtener_zona_por_id(db, zona_id)
     db.delete(zona)
