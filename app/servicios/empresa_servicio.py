@@ -1,24 +1,30 @@
 from sqlalchemy.orm import Session
-from app.modelos.empresa_modelo import Empresa
-from app.esquemas.empresa_esquema import EmpresaCreate, EmpresaUpdate
-from fastapi import HTTPException, status
-from app.modelos.zona_modelo import Zona
+from fastapi import HTTPException
 
+from app.modelos.empresa_modelo import Empresa
+from app.modelos.zona_modelo import Zona
+from app.esquemas.empresa_esquema import EmpresaCreate, EmpresaUpdate
 
 from app.Validaciones.empresa_validaciones import (
     validar_nombre_empresa,
     validar_telefono_empresa,
     validar_ruc_empresa,
     validar_correo_unico,
-    validar_ruc_unico
+    validar_ruc_unico,
 )
 
+
+# =========================================================
+# 📌 CREAR EMPRESA
+# =========================================================
 def crear_empresa(db: Session, empresa: EmpresaCreate):
 
-    # 🔎 VALIDACIONES
+    # VALIDACIONES
     validar_nombre_empresa(empresa.nombreEmpresa)
     validar_telefono_empresa(empresa.telefono)
     validar_ruc_empresa(empresa.ruc)
+
+    # Validaciones únicas
     validar_ruc_unico(db, empresa.ruc)
     validar_correo_unico(db, empresa.correo)
 
@@ -38,41 +44,58 @@ def crear_empresa(db: Session, empresa: EmpresaCreate):
     db.refresh(nueva_empresa)
     return nueva_empresa
 
-def obtener_empresas(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Empresa).filter(Empresa.borrado == True).offset(skip).limit(limit).all()
 
+# =========================================================
+# 📌 OBTENER EMPRESAS ACTIVAS
+# =========================================================
+def obtener_empresas(db: Session, skip: int = 0, limit: int = 100):
+    return (
+        db.query(Empresa)
+        .filter(Empresa.borrado == True)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+# =========================================================
+# 📌 OBTENER EMPRESA POR ID
+# =========================================================
 def obtener_empresa_por_id(db: Session, empresa_id: int):
     empresa = db.query(Empresa).filter(Empresa.id_Empresa == empresa_id).first()
+
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
     return empresa
 
-def obtener_empresa_por_ruc(db: Session, ruc: str):
-    empresa = db.query(Empresa).filter(Empresa.ruc == ruc).first()
-    if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    return empresa
 
+# =========================================================
+# 📌 ACTUALIZAR EMPRESA (CORREGIDO)
+# =========================================================
 def actualizar_empresa(db: Session, empresa_id: int, empresa_update: EmpresaUpdate):
     empresa = obtener_empresa_por_id(db, empresa_id)
 
-    # Si edita → validar nombre, teléfono y correo
+    # 🔹 VALIDAR NOMBRE
     if empresa_update.nombreEmpresa:
         validar_nombre_empresa(empresa_update.nombreEmpresa)
 
+    # 🔹 VALIDAR TELÉFONO
     if empresa_update.telefono:
         validar_telefono_empresa(empresa_update.telefono)
 
+    # 🔹 VALIDAR CORREO (pero sin bloquear cuando es el mismo)
     if empresa_update.correo:
-        validar_correo_unico(db, empresa_update.correo)
+        validar_correo_unico(db, empresa_update.correo, empresa_id)
 
-    # ❌ RUC bloqueado (NO se debe actualizar)
+    # ❌ RUC NO SE PUEDE EDITAR
     if empresa_update.ruc:
         raise HTTPException(
             status_code=400,
             detail="No se puede modificar el RUC de una empresa"
         )
 
+    # 🔹 APLICAR CAMBIOS
     for campo, valor in empresa_update.dict(exclude_unset=True).items():
         setattr(empresa, campo, valor)
 
@@ -80,27 +103,34 @@ def actualizar_empresa(db: Session, empresa_id: int, empresa_update: EmpresaUpda
     db.refresh(empresa)
     return empresa
 
+
+# =========================================================
+# 📌 ELIMINAR EMPRESA (BORRADO LÓGICO)
+# =========================================================
 def eliminar_empresa(db: Session, empresa_id: int):
     empresa = obtener_empresa_por_id(db, empresa_id)
 
-    # 🔍 Verificar si tiene zonas activas asociadas
+    # 🔍 Verificar zonas asociadas
     zonas_asociadas = db.query(Zona).filter(
         Zona.id_empresa_zona == empresa_id,
         Zona.borrado == True
     ).all()
 
-    if zonas_asociadas and len(zonas_asociadas) > 0:
+    if zonas_asociadas:
         raise HTTPException(
             status_code=400,
             detail="Esta empresa tiene zonas registradas. Elimínelas antes de continuar."
         )
 
-    # ✔ Si no tiene zonas → eliminar (borrado lógico)
     empresa.borrado = False
     db.commit()
 
     return {"message": "Empresa eliminada correctamente"}
 
+
+# =========================================================
+# 📌 ELIMINAR EMPRESA (PERMANENTE)
+# =========================================================
 def eliminar_empresa_permanente(db: Session, empresa_id: int):
     empresa = obtener_empresa_por_id(db, empresa_id)
     db.delete(empresa)
