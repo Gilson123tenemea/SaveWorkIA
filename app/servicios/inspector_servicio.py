@@ -304,19 +304,36 @@ def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
 
 
 def eliminar_inspector(db: Session, id_inspector: int):
-    inspector = db.query(Inspector).filter(Inspector.id_inspector == id_inspector).first()
-    if not inspector:
-        raise HTTPException(status_code=404, detail="Inspector no encontrado")
+    inspector = db.query(Inspector).filter(
+        Inspector.id_inspector == id_inspector,
+        Inspector.borrado == True
+    ).first()
 
-    # --- Desactivar Inspector ---
+    if not inspector:
+        raise HTTPException(status_code=404, detail="Inspector no encontrado o inactivo")
+
+    asignacion_activa = db.query(InspectorZona).filter(
+        InspectorZona.id_inspector_inspectorzona == id_inspector,
+        InspectorZona.borrado == True   # solo relaciones activas
+    ).first()
+
+    if asignacion_activa:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No se puede eliminar el inspector porque tiene zonas asignadas. "
+                "Elimine o reasigne esas zonas primero."
+            ),
+        )
+
     inspector.borrado = False
 
-    # --- Desactivar Persona ---
-    persona = db.query(Persona).filter(Persona.id_persona == inspector.id_persona_inspector).first()
+    persona = db.query(Persona).filter(
+        Persona.id_persona == inspector.id_persona_inspector
+    ).first()
     if persona:
         persona.borrado = False
 
-    # --- Desactivar RegistroSupervisorInspector ---
     registro = db.query(RegistroSupervisorInspector).filter(
         RegistroSupervisorInspector.id_inspector_registro == id_inspector
     ).first()
@@ -325,6 +342,7 @@ def eliminar_inspector(db: Session, id_inspector: int):
         registro.borrado = False
 
     db.commit()
+
     return {"mensaje": "Inspector eliminado (borrado lógico en 3 tablas)"}
 
 
