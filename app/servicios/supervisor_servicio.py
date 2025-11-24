@@ -8,6 +8,8 @@ from app.modelos.persona import Persona
 from app.modelos.supervisor import Supervisor
 from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor, SupervisorUpdate
 from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contrasena
+from app.modelos.registrosupervisorinspector import RegistroSupervisorInspector
+
 
 from app.Validaciones.validacion_usuario import (
     validar_cedula_ecuatoriana,
@@ -192,20 +194,40 @@ def listar_supervisores_activos(db: Session):
     return resultado
 
 
-# --- Eliminado lógico de supervisor ---
 def eliminar_supervisor(db: Session, id_supervisor: int):
-    supervisor = db.query(Supervisor).filter(Supervisor.id_supervisor == id_supervisor).first()
+
+    supervisor = db.query(Supervisor).filter(
+        Supervisor.id_supervisor == id_supervisor
+    ).first()
+
     if not supervisor:
         raise HTTPException(status_code=404, detail="Supervisor no encontrado")
 
-    persona = db.query(Persona).filter(Persona.id_persona == supervisor.id_persona_supervisor).first()
+    asignados_activos = db.query(RegistroSupervisorInspector).filter(
+        RegistroSupervisorInspector.id_supervisor_registro == id_supervisor,
+        RegistroSupervisorInspector.borrado == True   # activo
+    ).first()
+
+    if asignados_activos:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar el supervisor porque tiene inspectores asignados. "
+                   "Elimine o reasigne esos inspectores primero."
+        )
 
     supervisor.borrado = False
+
+    persona = db.query(Persona).filter(
+        Persona.id_persona == supervisor.id_persona_supervisor
+    ).first()
+
     if persona:
         persona.borrado = False
 
     db.commit()
+
     return {"mensaje": "Supervisor eliminado lógicamente con éxito"}
+
 
 def login_supervisor(db: Session, datos: LoginSupervisor):
     # Buscar la persona
