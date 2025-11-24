@@ -1,6 +1,8 @@
+# app/servicios/inspector_servicio.py
 from sqlalchemy.orm import Session
 from datetime import date
 from fastapi import HTTPException, status
+import base64  # 👈 NUEVO
 
 from app.modelos.persona import Persona
 from app.modelos.inspector import Inspector
@@ -209,15 +211,16 @@ def listar_inspectores(db: Session):
             "apellido": persona.apellido,
             "telefono": persona.telefono,
             "correo": persona.correo,
-            "direccion": persona.direccion,        # ➜ AGREGADO
-            "genero": persona.genero,              # ➜ AGREGADO
-            "fecha_nacimiento": persona.fecha_nacimiento.isoformat(),  # ➜ AGREGADO
+            "direccion": persona.direccion,
+            "genero": persona.genero,
+            "fecha_nacimiento": persona.fecha_nacimiento.isoformat(),
             "zona_asignada": inspector.zona_asignada,
             "frecuenciaVisita": inspector.frecuenciaVisita,
             "borrado": inspector.borrado,
         })
 
     return resultado
+
 
 # ======================================================
 # 🔎 VALIDAR CÉDULA — CONSULTA SI EXISTE Y ESTÁ ACTIVA
@@ -234,6 +237,7 @@ def cedula_existe_activa(db: Session, cedula: str):
 
     # Existe y está activa (borrado = True)
     return True  # No se puede usar
+
 
 def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
     inspector = db.query(Inspector).filter(Inspector.id_inspector == id_inspector).first()
@@ -299,7 +303,6 @@ def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
     return {"mensaje": "Inspector actualizado correctamente"}
 
 
-
 def eliminar_inspector(db: Session, id_inspector: int):
     inspector = db.query(Inspector).filter(Inspector.id_inspector == id_inspector).first()
     if not inspector:
@@ -351,6 +354,7 @@ def login_inspector(db: Session, datos: LoginInspector):
         "role": persona.rol
     }
 
+
 def listar_inspectores_por_supervisor(db: Session, id_supervisor: int):
     registros = (
         db.query(RegistroSupervisorInspector, Inspector, Persona)
@@ -382,6 +386,7 @@ def listar_inspectores_por_supervisor(db: Session, id_supervisor: int):
         })
 
     return resultado
+
 
 def obtener_zonas_por_inspector(db: Session, id_inspector: int):
     zonas = (
@@ -428,3 +433,52 @@ def obtener_zonas_por_inspector(db: Session, id_inspector: int):
         })
 
     return resultado
+
+
+# ======================================================
+# 🆕 PERFIL DEL INSPECTOR (para el modal de perfil)
+# ======================================================
+def obtener_perfil_inspector(db: Session, id_inspector: int):
+    inspector = db.query(Inspector).filter(
+        Inspector.id_inspector == id_inspector,
+        Inspector.borrado == True
+    ).first()
+
+    if not inspector:
+        raise HTTPException(status_code=404, detail="Inspector no encontrado")
+
+    persona = db.query(Persona).filter(
+        Persona.id_persona == inspector.id_persona_inspector
+    ).first()
+
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona asociada no encontrada")
+
+    registro = db.query(RegistroSupervisorInspector).filter(
+        RegistroSupervisorInspector.id_inspector_registro == inspector.id_inspector,
+        RegistroSupervisorInspector.borrado == True
+    ).first()
+
+    foto_base64 = None
+    if persona.foto:
+        try:
+            foto_base64 = base64.b64encode(persona.foto).decode("utf-8")
+        except Exception:
+            foto_base64 = None
+
+    return {
+        "id_inspector": inspector.id_inspector,
+        "id_persona": persona.id_persona,
+        "cedula": persona.cedula,
+        "nombre": persona.nombre,
+        "apellido": persona.apellido,
+        "telefono": persona.telefono,
+        "correo": persona.correo,
+        "direccion": persona.direccion,
+        "genero": persona.genero,
+        "fecha_nacimiento": persona.fecha_nacimiento,
+        "zona_asignada": inspector.zona_asignada,
+        "frecuenciaVisita": inspector.frecuenciaVisita,
+        "fecha_asignacion": registro.fecha_asignacion if registro else None,
+        "fotoBase64": foto_base64,
+    }
