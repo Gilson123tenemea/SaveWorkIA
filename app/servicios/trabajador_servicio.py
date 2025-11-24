@@ -320,13 +320,34 @@ def editar_trabajador_completo(db: Session, id_trabajador: int, data: Trabajador
 # -----------------------------------------------
 def borrado_logico_trabajador(db: Session, id_trabajador: int):
 
-    trabajador = db.query(Trabajador).filter(Trabajador.id_trabajador == id_trabajador).first()
-    if not trabajador:
-        raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+    trabajador = db.query(Trabajador).filter(
+        Trabajador.id_trabajador == id_trabajador
+    ).first()
 
-    persona = db.query(Persona).filter(Persona.id_persona == trabajador.id_persona_trabajador).first()
+    if not trabajador:
+        raise HTTPException(
+            status_code=404,
+            detail="Trabajador no encontrado"
+        )
+
+    asignaciones = db.query(TrabajadorZona).filter(
+        TrabajadorZona.id_trabajador_trabajadorzona == id_trabajador,
+        TrabajadorZona.borrado == True
+    ).count()
+
+    if asignaciones > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar el trabajador porque tiene zonas asignadas. "
+                   "Debe eliminar o reasignar esas zonas primero."
+        )
 
     trabajador.borrado = False
+
+    persona = db.query(Persona).filter(
+        Persona.id_persona == trabajador.id_persona_trabajador
+    ).first()
+
     if persona:
         persona.borrado = False
 
