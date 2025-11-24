@@ -1,34 +1,106 @@
-from sqlalchemy.orm import Session
-from app.modelos.camara_modelo import Camara
-from app.esquemas.camara_esquema import CamaraCreate, CamaraUpdate
+# app/servicios/camara_servicio.py
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 from datetime import date
-from sqlalchemy.orm import joinedload
+
+from app.modelos.camara_modelo import Camara
 from app.modelos.zona_modelo import Zona
+from app.modelos.empresa_modelo import Empresa  # IMPORTANTE
+from app.esquemas.camara_esquema import CamaraCreate, CamaraUpdate
+
+from app.Validaciones.camara_validaciones import (
+    validar_codigo_camara, validar_ip,
+    validar_tipo_camara, validar_estado_camara,
+)
 
 
+# ============================================================
+# 🔹 REGLA DE NEGOCIO DE DUPLICADOS
+# ============================================================
+def validar_unicidad_camara(db: Session, camara: CamaraCreate):
+    """
+    - Permite duplicados entre empresas.
+    - Bloquea duplicados en la misma empresa.
+    - Si existe una cámara con borrado=False → se permite crear otra.
+    """
 
+    zona = db.query(Zona).filter(
+        Zona.id_Zona == camara.id_zona,
+        Zona.borrado == True
+    ).first()
+
+    if not zona:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La zona seleccionada no existe o está inactiva"
+        )
+
+    empresa_id = zona.id_empresa_zona
+
+    # 🔹 Buscar cámaras en la MISMA EMPRESA (no solo en la zona)
+    zonas_empresa = db.query(Zona.id_Zona).filter(
+        Zona.id_empresa_zona == empresa_id
+    ).subquery()
+
+    # -------------------------
+    # 🔍 VALIDAR CÓDIGO
+    # -------------------------
+    codigo_dup = db.query(Camara).filter(
+        Camara.codigo == camara.codigo,
+        Camara.id_zona.in_(zonas_empresa),   # misma empresa
+        Camara.borrado == True               # solo activas
+    ).first()
+
+    if codigo_dup:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una cámara activa con ese código en esta empresa"
+        )
+
+    # -------------------------
+    # 🔍 VALIDAR IP
+    # -------------------------
+    ip_dup = db.query(Camara).filter(
+        Camara.ipAddress == camara.ipAddress,
+        Camara.id_zona.in_(zonas_empresa),   # misma empresa
+        Camara.borrado == True
+    ).first()
+
+    if ip_dup:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una cámara activa con esa IP en esta empresa"
+        )
+
+
+# ============================================================
+# 🔹 CREAR CÁMARA
+# ============================================================
 def crear_camara(db: Session, camara: CamaraCreate):
-    # código único
-    if db.query(Camara).filter(Camara.codigo == camara.codigo).first():
-        raise HTTPException(status_code=400, detail="El código de cámara ya está registrado")
 
-    # IP única
-    if db.query(Camara).filter(Camara.ipAddress == camara.ipAddress).first():
-        raise HTTPException(status_code=400, detail="La dirección IP ya está en uso")
+    validar_codigo_camara(camara.codigo)
+    validar_ip(camara.ipAddress)
+    validar_tipo_camara(camara.tipo)
+    validar_estado_camara(camara.estado)
+
+    validar_unicidad_camara(db, camara)
 
     nueva = Camara(**camara.model_dump())
+    nueva.borrado = True
+
     db.add(nueva)
     db.commit()
     db.refresh(nueva)
     return nueva
 
-def obtener_camaras(db: Session, skip: int = 0, limit: int = 100):
+
+# ============================================================
+# 🔹 LISTAR
+# ============================================================
+def obtener_camaras(db: Session, skip=0, limit=100):
     return (
         db.query(Camara)
-        .options(
-            joinedload(Camara.zona).joinedload(Zona.empresa)
-        )
+        .options(joinedload(Camara.zona).joinedload(Zona.empresa))
         .filter(Camara.borrado == True)
         .offset(skip)
         .limit(limit)
@@ -36,82 +108,67 @@ def obtener_camaras(db: Session, skip: int = 0, limit: int = 100):
     )
 
 
-def obtener_camaras_por_zona(db: Session, zona_id: int, skip: int = 0, limit: int = 100):
-    return (db.query(Camara)
-            .filter(Camara.id_zona == zona_id, Camara.borrado == True)
-            .offset(skip).limit(limit).all())
+def obtener_camaras_por_zona(db: Session, zona_id: int, skip=0, limit=100):
+    return (
+        db.query(Camara)
+        .filter(Camara.id_zona == zona_id, Camara.borrado == True)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
-def obtener_camaras_por_administrador(db: Session, administrador_id: int, skip: int = 0, limit: int = 100):
-    return (db.query(Camara)
-            .filter(Camara.id_administrador == administrador_id, Camara.borrado == True)
-            .offset(skip).limit(limit).all())
 
-def obtener_camaras_por_estado(db: Session, estado: str, skip: int = 0, limit: int = 100):
-    return (db.query(Camara)
-            .filter(Camara.estado == estado, Camara.borrado == True)
-            .offset(skip).limit(limit).all())
+def obtener_camaras_por_administrador(db: Session, administrador_id: int, skip=0, limit=100):
+    return (
+        db.query(Camara)
+        .filter(Camara.id_administrador == administrador_id, Camara.borrado == True)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
+
+# ============================================================
+# 🔹 OBTENER UNA CÁMARA
+# ============================================================
 def obtener_camara_por_id(db: Session, camara_id: int):
     cam = db.query(Camara).filter(Camara.id_camara == camara_id).first()
     if not cam:
-        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+        raise HTTPException(404, "Cámara no encontrada")
     return cam
 
-def obtener_camara_por_codigo(db: Session, codigo: str):
-    cam = db.query(Camara).filter(Camara.codigo == codigo).first()
-    if not cam:
-        raise HTTPException(status_code=404, detail="Cámara no encontrada")
-    return cam
 
+# ============================================================
+# 🔹 ACTUALIZAR SOLO ESTADO
+# ============================================================
 def actualizar_camara(db: Session, camara_id: int, camara_update: CamaraUpdate):
     cam = obtener_camara_por_id(db, camara_id)
 
     data = camara_update.model_dump(exclude_unset=True)
 
-    # validar unicidad si cambian código/IP
-    if "codigo" in data:
-        existe = db.query(Camara).filter(Camara.codigo == data["codigo"], Camara.id_camara != camara_id).first()
-        if existe:
-            raise HTTPException(status_code=400, detail="El código de cámara ya está registrado")
+    if set(data.keys()) != {"estado"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se permite actualizar el estado de la cámara"
+        )
 
-    if "ipAddress" in data:
-        existe_ip = db.query(Camara).filter(Camara.ipAddress == data["ipAddress"], Camara.id_camara != camara_id).first()
-        if existe_ip:
-            raise HTTPException(status_code=400, detail="La dirección IP ya está en uso")
+    validar_estado_camara(data["estado"])
 
-    for k, v in data.items():
-        setattr(cam, k, v)
-
+    cam.estado = data["estado"]
     db.commit()
     db.refresh(cam)
     return cam
 
-def actualizar_ultima_transmision(db: Session, camara_id: int):
-    cam = obtener_camara_por_id(db, camara_id)
-    cam.ultimaTransmision = date.today()
-    db.commit()
-    db.refresh(cam)
-    return cam
 
-def actualizar_ultima_revision(db: Session, camara_id: int):
-    cam = obtener_camara_por_id(db, camara_id)
-    cam.ultima_revision = date.today()
-    db.commit()
-    db.refresh(cam)
-    return cam
-
-def cambiar_estado_camara(db: Session, camara_id: int, nuevo_estado: str):
-    cam = obtener_camara_por_id(db, camara_id)
-    cam.estado = nuevo_estado
-    db.commit()
-    db.refresh(cam)
-    return cam
-
+# ============================================================
+# 🔹 ELIMINAR
+# ============================================================
 def eliminar_camara(db: Session, camara_id: int):
     cam = obtener_camara_por_id(db, camara_id)
     cam.borrado = False
     db.commit()
     return {"message": "Cámara eliminada correctamente"}
+
 
 def eliminar_camara_permanente(db: Session, camara_id: int):
     cam = obtener_camara_por_id(db, camara_id)

@@ -7,7 +7,8 @@ class Camara(Base):
     __tablename__ = "camaras"
 
     id_camara = Column(Integer, primary_key=True, index=True)
-    codigo = Column(String(10), unique=True, nullable=False, index=True)
+    codigo = Column(String(10), nullable=False, index=True)
+
     tipo = Column(String(100), nullable=False)
     estado = Column(String(100), nullable=False)
     ipAddress = Column(String(100), nullable=False)
