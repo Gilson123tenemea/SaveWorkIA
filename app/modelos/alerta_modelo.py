@@ -1,21 +1,19 @@
-# app/modelos/alerta_modelo.py
-from sqlalchemy import Column, Integer, String, Boolean, Date, LargeBinary, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, LargeBinary, ForeignKey, DateTime
 from app.config import Base
 
 class Alerta(Base):
     __tablename__ = "alertas"
 
-    id_Alerta = Column(Integer, primary_key=True, index=True)
-    fechaHora = Column(Date, nullable=False)
-    tipoAlerta = Column(String(50), nullable=False)
+    id_alerta = Column(Integer, primary_key=True, index=True)
+    fecha_hora = Column(DateTime, nullable=False)
+    tipo_alerta = Column(String(50), nullable=False)
     descripcion = Column(String(250), nullable=False)
-    nivelRiesgo = Column(String(20), nullable=False)
-    imagenEvidencia = Column(LargeBinary, nullable=True)
+    nivel_riesgo = Column(String(20), nullable=False)
+    imagen_evidencia = Column(LargeBinary, nullable=True)
     estado = Column(String(20), nullable=False)
 
-    id_evento_deteccion = Column(Integer, ForeignKey("eventos_deteccion.id_evento"), nullable=False)
-    id_reporte = Column(Integer, ForeignKey("reportes.id_reporte"), nullable=False)
-    id_supervisor_alerta = Column(Integer, ForeignKey("supervisor.id_supervisor"), nullable=False)
-    borrado = Column(Boolean, default=True)
+    id_evento = Column(Integer, ForeignKey("eventos_deteccion.id_evento"), nullable=False)
+    borrado = Column(Boolean, default=False)
 
+    # Relación opcional si quieres descargar reportes después
+    id_reporte = Column(Integer, ForeignKey("reportes.id_reporte"), nullable=True)

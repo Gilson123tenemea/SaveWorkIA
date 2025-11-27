@@ -13,6 +13,9 @@ from app.Validaciones.camara_validaciones import (
     validar_tipo_camara, validar_estado_camara,
 )
 
+import requests
+import cv2
+import numpy as np
 
 # ============================================================
 # 🔹 REGLA DE NEGOCIO DE DUPLICADOS
@@ -175,3 +178,32 @@ def eliminar_camara_permanente(db: Session, camara_id: int):
     db.delete(cam)
     db.commit()
     return {"message": "Cámara eliminada permanentemente"}
+
+def probar_conexion_camara(url: str):
+    """
+    Intenta conectarse a la cámara y obtiene 1 frame.
+    Si funciona, devuelve True.
+    """
+    try:
+        # Para IP Webcam:
+        test_url = (
+            url if "shot.jpg" in url 
+            else url.replace("video", "shot.jpg")
+        )
+
+        resp = requests.get(test_url, timeout=3)
+
+        if resp.status_code != 200:
+            return False, "La cámara no respondió correctamente"
+
+        # Validar que sea una imagen válida
+        img_np = np.frombuffer(resp.content, np.uint8)
+        frame = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+
+        if frame is None:
+            return False, "No se pudo decodificar imagen"
+
+        return True, "Conexión exitosa"
+
+    except Exception as e:
+        return False, str(e)

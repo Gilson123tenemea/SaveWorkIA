@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.camara_esquema import CamaraCreate, CamaraResponse, CamaraUpdate
 from app.servicios import camara_servicio
+from fastapi import Body
 
 router = APIRouter(prefix="/camaras", tags=["Cámaras"])
 
@@ -134,3 +135,16 @@ def eliminar_camara_permanente(camara_id: int, db: Session = Depends(get_db)):
     ⚠️ Esta acción es irreversible
     """
     return camara_servicio.eliminar_camara_permanente(db, camara_id)
+
+
+@router.post("/test")
+def probar_conexion(url: str = Body(..., embed=True)):
+    """
+    Prueba conexión con una cámara IP (IP Webcam o RTSP).
+    """
+    ok, mensaje = camara_servicio.probar_conexion_camara(url)
+
+    if not ok:
+        return {"status": "error", "message": mensaje}
+
+    return {"status": "ok", "message": mensaje}

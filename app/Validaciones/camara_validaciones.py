@@ -25,14 +25,30 @@ def validar_codigo_camara(codigo: str):
             detail="El código de la cámara no puede superar los 10 caracteres"
         )
 
-def validar_ip(ip: str):
-    campo_obligatorio(ip, "Dirección IP")
-
-    patron = r"^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$"
-    if not re.fullmatch(patron, ip.strip()):
+def validar_ip(url: str):
+    if not url or url.strip() == "":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La dirección IP no tiene un formato IPv4 válido"
+            detail="La URL de la cámara es obligatoria"
+        )
+
+    url = url.strip()
+
+    # Acepta:
+    # http://IP:PUERTO/ruta
+    # https://IP:PUERTO/ruta
+    # rtsp://usuario:pass@IP:PUERTO/ruta
+    # http://dominio.com/stream
+    patron = r"^(http|https|rtsp)://.+$"
+
+    if not re.match(patron, url):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "La URL de la cámara no es válida. "
+                "Debe iniciar con http://, https:// o rtsp:// "
+                "Ejemplo: http://192.168.1.10:8080/video"
+            )
         )
 
 def validar_tipo_camara(tipo: str):
