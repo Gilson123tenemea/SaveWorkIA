@@ -7,6 +7,11 @@ from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contra
 from sqlalchemy.orm import joinedload
 from app.modelos.trabajador_zona import TrabajadorZona
 
+from sqlalchemy.orm import Session, joinedload
+from app.modelos.zona_modelo import Zona
+from app.modelos.camara_modelo import Camara
+
+
 from app.Validaciones.validacion_usuario import (
     validar_cedula_ecuatoriana,
     validar_cedula_unica,
@@ -421,3 +426,67 @@ def obtener_trabajadores_no_asignados(db: Session, id_supervisor: int):
     )
 
     return trabajadores
+
+def extraer_trabajador_codigo_con_camara(db: Session, codigo: str):
+    # 1️⃣ Buscar trabajador por código
+    trabajador = db.query(Trabajador).filter(
+        Trabajador.codigo_trabajador == codigo,
+        Trabajador.borrado == True  # solo activos
+    ).first()
+
+    if not trabajador:
+        raise HTTPException(status_code=404, detail="No existe trabajador con ese código")
+
+    # 2️⃣ Obtener la zona a la que está asignado el trabajador (nueva lógica)
+    asignacion = db.query(TrabajadorZona).filter(
+        TrabajadorZona.id_trabajador_trabajadorzona == trabajador.id_trabajador,
+        TrabajadorZona.borrado == True  # asignación activa
+    ).first()
+
+    if not asignacion:
+        raise HTTPException(status_code=404, detail="El trabajador no tiene una zona asignada")
+
+    id_zona = asignacion.id_zona_trabajadorzona
+
+    # 3️⃣ Obtener la cámara única de esa zona (nueva lógica)
+    camara = db.query(Camara).filter(
+        Camara.id_zona == id_zona,
+        Camara.borrado == True  # solo activas
+    ).first()
+
+    if not camara:
+        raise HTTPException(status_code=404, detail="No existe una cámara activa en la zona asignada")
+
+    # 4️⃣ Construimos el JSON final anidado incluyendo la cámara
+    return {
+        "id_trabajador": trabajador.id_trabajador,
+        "cargo": trabajador.cargo,
+        "area_trabajo": trabajador.area_trabajo,
+        "implementos_requeridos": trabajador.implementos_requeridos,
+        "estado": trabajador.estado,
+        "codigo_trabajador": trabajador.codigo_trabajador,
+        "id_empresa": trabajador.id_empresa,
+        "id_supervisor_trabajador": trabajador.id_supervisor_trabajador,
+        "fecharegistro": trabajador.fecharegistro,
+        "zona": id_zona,
+        "camara": {
+            "id_camara": camara.id_camara,
+            "codigo": camara.codigo,
+            "ipAddress": camara.ipAddress,
+            "tipo": camara.tipo,
+            "estado": camara.estado,
+            "ultimaTransmision": camara.ultimaTransmision,
+            "ultima_revision": camara.ultima_revision
+        },
+        "persona": {
+            "id_persona": trabajador.persona.id_persona,
+            "cedula": trabajador.persona.cedula,
+            "nombre": trabajador.persona.nombre,
+            "apellido": trabajador.persona.apellido,
+            "telefono": trabajador.persona.telefono,
+            "correo": trabajador.persona.correo,
+            "direccion": trabajador.persona.direccion,
+            "genero": trabajador.persona.genero,
+            "fecha_nacimiento": trabajador.persona.fecha_nacimiento
+        }
+    }
