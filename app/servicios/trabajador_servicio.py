@@ -427,17 +427,24 @@ def obtener_trabajadores_no_asignados(db: Session, id_supervisor: int):
 
     return trabajadores
 
-def extraer_trabajador_codigo_con_camara(db: Session, codigo: str):
+def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: int):
     # 1️⃣ Buscar trabajador por código
     trabajador = db.query(Trabajador).filter(
         Trabajador.codigo_trabajador == codigo,
-        Trabajador.borrado == True  # solo activos
+        Trabajador.borrado == True  # solo activos (lógica correcta del borrado)
     ).first()
 
     if not trabajador:
         raise HTTPException(status_code=404, detail="No existe trabajador con ese código")
 
-    # 2️⃣ Obtener la zona a la que está asignado el trabajador (nueva lógica)
+    # 🔥 2️⃣ Validar si pertenece a la empresa enviada desde el front
+    if trabajador.id_empresa != id_empresa:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El trabajador {codigo} no pertenece a esta empresa"
+        )
+
+    # 3️⃣ Obtener la zona a la que está asignado
     asignacion = db.query(TrabajadorZona).filter(
         TrabajadorZona.id_trabajador_trabajadorzona == trabajador.id_trabajador,
         TrabajadorZona.borrado == True  # asignación activa
@@ -448,16 +455,16 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str):
 
     id_zona = asignacion.id_zona_trabajadorzona
 
-    # 3️⃣ Obtener la cámara única de esa zona (nueva lógica)
+    # 4️⃣ Obtener la cámara única de esa zona
     camara = db.query(Camara).filter(
         Camara.id_zona == id_zona,
-        Camara.borrado == True  # solo activas
+        Camara.borrado == True  # solo cámaras activas
     ).first()
 
     if not camara:
         raise HTTPException(status_code=404, detail="No existe una cámara activa en la zona asignada")
 
-    # 4️⃣ Construimos el JSON final anidado incluyendo la cámara
+    # 5️⃣ Construimos el JSON final
     return {
         "id_trabajador": trabajador.id_trabajador,
         "cargo": trabajador.cargo,
@@ -490,3 +497,4 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str):
             "fecha_nacimiento": trabajador.persona.fecha_nacimiento
         }
     }
+

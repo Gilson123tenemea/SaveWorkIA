@@ -1,25 +1,25 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 import cv2
 import time
-
-from app.config import get_db
 from app.servicios.deteccion_epp import procesar_frame
-from app.servicios.camara_servicio import obtener_camara_por_id
 
-router = APIRouter(prefix="/ia/camaras", tags=["IA - Cámaras"])
+router = APIRouter(prefix="/webcam", tags=["IA - Webcam"])
 
-
-def generar_stream(url_stream):
-    cap = cv2.VideoCapture(url_stream)
+def generar_stream_webcam():
+    cap = cv2.VideoCapture(0)  # 0 = Webcam del computador
 
     if not cap.isOpened():
-        raise HTTPException(status_code=400, detail="No se pudo conectar a la cámara")
+        print("❌ No se pudo abrir la webcam")
+        return
+
+    print("✅ Webcam abierta correctamente")
 
     while True:
         ret, frame = cap.read()
         if not ret:
             continue
+        frame = cv2.flip(frame, 1)
 
         # Procesar con YOLO
         frame_anotado, _ = procesar_frame(frame)
@@ -32,22 +32,12 @@ def generar_stream(url_stream):
             b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
         )
 
-        time.sleep(0.03)
+        time.sleep(0.066)
 
 
-@router.get("/{id_camara}/stream")
-async def stream_con_ia(id_camara: int, db=Depends(get_db)):
-    camara = obtener_camara_por_id(db, id_camara)
-
-    if not camara:
-        raise HTTPException(status_code=404, detail="Cámara no encontrada")
-
-    print("📷 Cámara encontrada:", camara.__dict__)
-
-    # ✔ Aquí se toma la URL real desde ipAddress
-    url_stream = camara.ipAddress
-
+@router.get("/stream")
+async def stream_webcam():
     return StreamingResponse(
-        generar_stream(url_stream),
+        generar_stream_webcam(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )

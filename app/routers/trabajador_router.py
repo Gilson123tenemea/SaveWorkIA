@@ -94,7 +94,7 @@ def listar_trabajadores_por_supervisor(id_supervisor: int, db: Session = Depends
 def listar_trabajadores_no_asignados(id_supervisor: int, db: Session = Depends(get_db)):
     return trabajador_servicio.obtener_trabajadores_no_asignados(db, id_supervisor)
 
-@router.get("/extraer/entrada/camara/{codigo}")
-def obtener_trabajador_con_camara_nuevo(codigo: str, db: Session = Depends(get_db)):
+@router.get("/extraer/entrada/camara/{codigo}/empresa/{id_empresa}")
+def obtener_trabajador_con_empresa(codigo: str, id_empresa: int, db: Session = Depends(get_db)):
     from app.servicios.trabajador_servicio import extraer_trabajador_codigo_con_camara
-    return extraer_trabajador_codigo_con_camara(db, codigo)
+    return extraer_trabajador_codigo_con_camara(db, codigo, id_empresa)
