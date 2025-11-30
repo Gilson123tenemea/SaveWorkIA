@@ -10,7 +10,8 @@ from app.modelos.trabajador_zona import TrabajadorZona
 from sqlalchemy.orm import Session, joinedload
 from app.modelos.zona_modelo import Zona
 from app.modelos.camara_modelo import Camara
-
+from app.modelos.inspector_zona import InspectorZona
+from app.modelos.inspector import Inspector
 
 from app.Validaciones.validacion_usuario import (
     validar_cedula_ecuatoriana,
@@ -431,23 +432,23 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
     # 1️⃣ Buscar trabajador por código
     trabajador = db.query(Trabajador).filter(
         Trabajador.codigo_trabajador == codigo,
-        Trabajador.borrado == True  # solo activos (lógica correcta del borrado)
+        Trabajador.borrado == True
     ).first()
 
     if not trabajador:
         raise HTTPException(status_code=404, detail="No existe trabajador con ese código")
 
-    # 🔥 2️⃣ Validar si pertenece a la empresa enviada desde el front
+    # 2️⃣ Validar si pertenece a la empresa enviada del front
     if trabajador.id_empresa != id_empresa:
         raise HTTPException(
             status_code=400,
             detail=f"El trabajador {codigo} no pertenece a esta empresa"
         )
 
-    # 3️⃣ Obtener la zona a la que está asignado
+    # 3️⃣ Obtener la zona a la que está asignado el trabajador
     asignacion = db.query(TrabajadorZona).filter(
         TrabajadorZona.id_trabajador_trabajadorzona == trabajador.id_trabajador,
-        TrabajadorZona.borrado == True  # asignación activa
+        TrabajadorZona.borrado == True
     ).first()
 
     if not asignacion:
@@ -458,13 +459,38 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
     # 4️⃣ Obtener la cámara única de esa zona
     camara = db.query(Camara).filter(
         Camara.id_zona == id_zona,
-        Camara.borrado == True  # solo cámaras activas
+        Camara.borrado == True
     ).first()
 
     if not camara:
-        raise HTTPException(status_code=404, detail="No existe una cámara activa en la zona asignada")
+        raise HTTPException(status_code=404, detail="No existe cámara activa en la zona asignada")
 
-    # 5️⃣ Construimos el JSON final
+    # 5️⃣ Buscar el inspector asignado a esta zona
+    inspector_zona = db.query(InspectorZona).filter(
+        InspectorZona.id_zona_inspectorzona == id_zona,
+        InspectorZona.borrado == True
+    ).first()
+
+    id_inspector = None
+    inspector_data = None
+
+    if inspector_zona:
+        id_inspector = inspector_zona.id_inspector_inspectorzona
+
+        inspector = db.query(Inspector).filter(
+            Inspector.id_inspector == id_inspector,
+            Inspector.borrado == True
+        ).first()
+
+        if inspector:
+            inspector_data = {
+                "id_inspector": inspector.id_inspector,
+                "zona_asignada": inspector.zona_asignada,
+                "frecuenciaVisita": inspector.frecuenciaVisita,
+                "id_persona": inspector.id_persona_inspector
+            }
+
+    # 6️⃣ Construimos el JSON final
     return {
         "id_trabajador": trabajador.id_trabajador,
         "cargo": trabajador.cargo,
@@ -475,7 +501,10 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
         "id_empresa": trabajador.id_empresa,
         "id_supervisor_trabajador": trabajador.id_supervisor_trabajador,
         "fecharegistro": trabajador.fecharegistro,
-        "zona": id_zona,
+        "id_zona": id_zona,
+
+        "id_inspector": id_inspector,  # 👈 nuevo campo agregado
+
         "camara": {
             "id_camara": camara.id_camara,
             "codigo": camara.codigo,
@@ -485,6 +514,7 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
             "ultimaTransmision": camara.ultimaTransmision,
             "ultima_revision": camara.ultima_revision
         },
+
         "persona": {
             "id_persona": trabajador.persona.id_persona,
             "cedula": trabajador.persona.cedula,
@@ -495,6 +525,8 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
             "direccion": trabajador.persona.direccion,
             "genero": trabajador.persona.genero,
             "fecha_nacimiento": trabajador.persona.fecha_nacimiento
-        }
+        },
+
+        "inspector": inspector_data  # 👈 objeto opcional por si quieres usar más tarde en el front
     }
 

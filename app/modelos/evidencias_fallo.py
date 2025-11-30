@@ -1,0 +1,17 @@
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, text
+from sqlalchemy.orm import relationship
+from app.config import Base
+
+class EvidenciaFallo(Base):
+    __tablename__ = "evidencias_fallo"
+
+    id_evidencia = Column(Integer, primary_key=True, index=True)
+    foto_url = Column(String(500), nullable=False)
+    detalle_fallo = Column(String(200), nullable=False)
+    fecha_captura = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    borrado = Column(Boolean, default=False)
+
+    id_registro = Column(Integer, ForeignKey("registros_asistencia.id_registro"), nullable=False)
+
+    # Relación ORM
+    registro = relationship("RegistroAsistencia", lazy="joined")
