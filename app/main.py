@@ -25,7 +25,7 @@ from app.modelos import inspector_reporte
 from app.modelos import inspector_zona
 from app.modelos import trabajador_zona
 from app.modelos import registros_asistencia
-from app.modelos import evento_deteccion_modelo
+from app.modelos import evidencias_fallo
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
