@@ -2,7 +2,6 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from app.modelos.empresa_modelo import Empresa
-from app.modelos.zona_modelo import Zona
 from app.esquemas.empresa_esquema import EmpresaCreate, EmpresaUpdate
 
 from app.Validaciones.empresa_validaciones import (
@@ -11,6 +10,8 @@ from app.Validaciones.empresa_validaciones import (
     validar_ruc_empresa,
     validar_correo_unico,
     validar_ruc_unico,
+    validar_formato_correo,
+    validar_relaciones_empresa
 )
 
 
@@ -19,12 +20,11 @@ from app.Validaciones.empresa_validaciones import (
 # =========================================================
 def crear_empresa(db: Session, empresa: EmpresaCreate):
 
-    # VALIDACIONES
     validar_nombre_empresa(empresa.nombreEmpresa)
     validar_telefono_empresa(empresa.telefono)
     validar_ruc_empresa(empresa.ruc)
+    validar_formato_correo(empresa.correo)
 
-    # Validaciones únicas
     validar_ruc_unico(db, empresa.ruc)
     validar_correo_unico(db, empresa.correo)
 
@@ -71,31 +71,27 @@ def obtener_empresa_por_id(db: Session, empresa_id: int):
 
 
 # =========================================================
-# 📌 ACTUALIZAR EMPRESA (CORREGIDO)
+# 📌 ACTUALIZAR EMPRESA
 # =========================================================
 def actualizar_empresa(db: Session, empresa_id: int, empresa_update: EmpresaUpdate):
     empresa = obtener_empresa_por_id(db, empresa_id)
 
-    # 🔹 VALIDAR NOMBRE
     if empresa_update.nombreEmpresa:
         validar_nombre_empresa(empresa_update.nombreEmpresa)
 
-    # 🔹 VALIDAR TELÉFONO
     if empresa_update.telefono:
         validar_telefono_empresa(empresa_update.telefono)
 
-    # 🔹 VALIDAR CORREO (pero sin bloquear cuando es el mismo)
     if empresa_update.correo:
+        validar_formato_correo(empresa_update.correo)
         validar_correo_unico(db, empresa_update.correo, empresa_id)
 
-    # ❌ RUC NO SE PUEDE EDITAR
     if empresa_update.ruc:
         raise HTTPException(
             status_code=400,
             detail="No se puede modificar el RUC de una empresa"
         )
 
-    # 🔹 APLICAR CAMBIOS
     for campo, valor in empresa_update.dict(exclude_unset=True).items():
         setattr(empresa, campo, valor)
 
@@ -110,17 +106,7 @@ def actualizar_empresa(db: Session, empresa_id: int, empresa_update: EmpresaUpda
 def eliminar_empresa(db: Session, empresa_id: int):
     empresa = obtener_empresa_por_id(db, empresa_id)
 
-    # 🔍 Verificar zonas asociadas
-    zonas_asociadas = db.query(Zona).filter(
-        Zona.id_empresa_zona == empresa_id,
-        Zona.borrado == True
-    ).all()
-
-    if zonas_asociadas:
-        raise HTTPException(
-            status_code=400,
-            detail="Esta empresa tiene zonas registradas. Elimínelas antes de continuar."
-        )
+    validar_relaciones_empresa(db, empresa_id)
 
     empresa.borrado = False
     db.commit()
