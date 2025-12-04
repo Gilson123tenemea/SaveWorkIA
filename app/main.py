@@ -55,6 +55,7 @@ from app.routers import (
     camara_ia,
     registros_asistencia_router,
     evidencias_fallo_router,
+    reporte_incumplimientos_router,
 
 
 )
@@ -106,6 +107,7 @@ app.include_router(monitoreo_router.router)
 app.include_router(camara_ia.router)
 app.include_router(registros_asistencia_router.router)
 app.include_router(evidencias_fallo_router.router)
+app.include_router(reporte_incumplimientos_router.router)
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
 # ----------------------------------------------------------------------
