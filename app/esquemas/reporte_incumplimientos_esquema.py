@@ -1,4 +1,4 @@
-# app/esquemas/reporte_incumplimientos_schema.py
+# app/esquemas/reporte_incumplimientos_esquema.py
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional

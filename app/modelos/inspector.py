@@ -1,6 +1,7 @@
 # app/modelos/inspector.py
 from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey
 from app.config import Base
+from sqlalchemy.orm import relationship
 
 class Inspector(Base):
     __tablename__ = "inspector"
@@ -12,3 +13,4 @@ class Inspector(Base):
 
     # Relacion con persona
     id_persona_inspector = Column(Integer, ForeignKey("personas.id_persona"), nullable=False)
+    persona = relationship("Persona", lazy="joined")
