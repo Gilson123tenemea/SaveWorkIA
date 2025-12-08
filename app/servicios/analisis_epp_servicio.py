@@ -9,6 +9,15 @@ import cv2
 import numpy as np
 from app.servicios.deteccion_epp import model
 
+MAPA_CLASES = {
+    "helmet": "casco",
+    "vest": "chaleco",
+    "boots": "botas",
+    "gloves": "guantes",
+    "glasses": "lentes"
+}
+
+
 def analizar_frame_epp(frame):
     """
     Analiza un frame con YOLO y retorna análisis completo de EPP
@@ -46,6 +55,7 @@ def analizar_frame_epp(frame):
         'lentes': {'detectado': False, 'confianza': 0.0}  # Opcional pero registramos
     }
     
+    
     # 3️⃣ PROCESAR DETECCIONES
     if boxes is not None and len(boxes) > 0:
         print(f"📦 Total boxes detectados: {len(boxes)}")
@@ -57,11 +67,16 @@ def analizar_frame_epp(frame):
                 
                 print(f"  → {class_name}: {conf:.2f}")  # 🔥 DEBUG
                 
-                # ✅ Si existe este implemento Y tiene confianza alta
-                if class_name in implementos_detectados:
-                    if conf > 0.4:
-                        implementos_detectados[class_name]['detectado'] = True
-                        implementos_detectados[class_name]['confianza'] = conf
+                if class_name in MAPA_CLASES:
+                    nombre_interno = MAPA_CLASES[class_name]
+                else:
+                    print(f"⚠ Clase YOLO no reconocida: {class_name}")
+                    continue
+
+                if nombre_interno in implementos_detectados:
+                    if conf > 0.40:
+                     implementos_detectados[nombre_interno]['detectado'] = True
+                     implementos_detectados[nombre_interno]['confianza'] = conf
             except Exception as e:
                 print(f"⚠ Error procesando box: {e}")
                 continue
