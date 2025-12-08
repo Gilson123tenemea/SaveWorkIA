@@ -10,12 +10,23 @@ import numpy as np
 from app.servicios.deteccion_epp import model
 
 MAPA_CLASES = {
-    "helmet": "casco",
-    "vest": "chaleco",
-    "boots": "botas",
-    "gloves": "guantes",
-    "glasses": "lentes"
+    "helmet": ("casco", True),
+    "no-helmet": ("casco", False),
+
+    "vest": ("chaleco", True),
+    "no-vest": ("chaleco", False),
+
+    "gloves": ("guantes", True),
+    "no-gloves": ("guantes", False),
+
+    "boots": ("botas", True),
+    "no-boots": ("botas", False),
+
+    "goggles": ("lentes", True),
+    "no-goggles": ("lentes", False)
 }
+
+
 
 
 def analizar_frame_epp(frame):
@@ -52,40 +63,43 @@ def analizar_frame_epp(frame):
         'chaleco': {'detectado': False, 'confianza': 0.0},
         'guantes': {'detectado': False, 'confianza': 0.0},
         'botas': {'detectado': False, 'confianza': 0.0},
-        'lentes': {'detectado': False, 'confianza': 0.0}  # Opcional pero registramos
+        'lentes': {'detectado': False, 'confianza': 0.0} 
     }
     
     
     # 3️⃣ PROCESAR DETECCIONES
     if boxes is not None and len(boxes) > 0:
-        print(f"📦 Total boxes detectados: {len(boxes)}")
-        for box in boxes:
-            try:
-                conf = float(box.conf[0])
-                cls = int(box.cls[0])
-                class_name = model.names[cls].lower()
-                
-                print(f"  → {class_name}: {conf:.2f}")  # 🔥 DEBUG
-                
-                if class_name in MAPA_CLASES:
-                    nombre_interno = MAPA_CLASES[class_name]
-                else:
-                    print(f"⚠ Clase YOLO no reconocida: {class_name}")
-                    continue
+     print(f"📦 Total boxes detectados: {len(boxes)}")
+    for box in boxes:
+        try:
+            conf = float(box.conf[0])
+            cls = int(box.cls[0])
+            class_name = model.names[cls].lower()
 
-                if nombre_interno in implementos_detectados:
-                    if conf > 0.40:
-                     implementos_detectados[nombre_interno]['detectado'] = True
-                     implementos_detectados[nombre_interno]['confianza'] = conf
-            except Exception as e:
-                print(f"⚠ Error procesando box: {e}")
+            print(f"  → {class_name}: {conf:.2f}")
+
+            if class_name not in MAPA_CLASES:
+                print(f"⚠ Clase YOLO no reconocida: {class_name}")
                 continue
+
+            implemento, es_presencia = MAPA_CLASES[class_name]
+
+            if conf > 0.40:
+                implementos_detectados[implemento]['detectado'] = es_presencia
+                implementos_detectados[implemento]['confianza'] = conf
+
+        except Exception as e:
+            print(f"⚠ Error procesando box: {e}")
+            continue
     else:
-        print("⚠ No se detectaron boxes")
+     print("⚠ No se detectaron boxes")
+
+
     
     # 4️⃣ EVALUAR CUMPLIMIENTO DE EPP
     # Implementos OBLIGATORIOS (todos deben estar presentes)
-    implementos_obligatorios = ['casco', 'chaleco', 'guantes', 'botas']
+    implementos_obligatorios = ['casco', 'chaleco', 'guantes', 'botas', 'lentes']
+
     
     cumple_epp = all(
         implementos_detectados[imp]['detectado'] 
@@ -121,7 +135,8 @@ def _generar_detalle_fallo(implementos, cumple_epp):
     faltantes = []
     for imp, estado in implementos.items():
         # Solo verificar obligatorios
-        if imp in ['casco', 'chaleco', 'guantes', 'botas']:
+        if imp in ['casco', 'chaleco', 'guantes', 'botas', 'lentes']:
+
             if not estado['detectado']:
                 faltantes.append(imp.upper())
     
