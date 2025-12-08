@@ -35,3 +35,13 @@ class IncumplimientoResponse(BaseModel):
     camara: CamaraInfo
     evidencia: EvidenciaInfo
     fecha_registro: datetime
+
+class EstadisticasEPP(BaseModel):
+    total: int
+    cumple: int
+    incumple: int
+    tasa: float
+
+class ReporteTrabajadorResponse(BaseModel):
+    estadisticas: EstadisticasEPP
+    historial: list[IncumplimientoResponse]

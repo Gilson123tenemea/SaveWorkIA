@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.config import get_db
-from app.esquemas.reporte_incumplimientos_esquema import IncumplimientoResponse
+from app.esquemas.reporte_incumplimientos_esquema import IncumplimientoResponse, ReporteTrabajadorResponse
 from app.servicios.reporte_incumplimientos_servicio import obtener_incumplimientos_por_supervisor, obtener_incumplimientos_trabajador
 
 router = APIRouter(prefix="/reportes/incumplimientos", tags=["Reportes - Incumplimientos"])
@@ -20,7 +20,7 @@ def listar_incumplimientos(
 
     return resultados
 
-@router.get("/trabajador", response_model=list[IncumplimientoResponse])
+@router.get("/trabajador", response_model=ReporteTrabajadorResponse)
 def historial_trabajador(
     cedula: str | None = None,
     codigo_trabajador: str | None = None,

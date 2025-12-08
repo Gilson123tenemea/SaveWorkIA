@@ -110,6 +110,9 @@ def obtener_incumplimientos_trabajador(
     id_trabajador: int | None = None
 ):
 
+    # ===========================
+    # 1️⃣ OBTENER TRABAJADOR
+    # ===========================
     query = db.query(Trabajador).join(Persona)
 
     if cedula:
@@ -128,6 +131,23 @@ def obtener_incumplimientos_trabajador(
 
     persona = trabajador.persona
 
+    # ===========================
+    # 2️⃣ OBTENER TODOS LOS REGISTROS DEL TRABAJADOR (para estadisticas)
+    # ===========================
+    todos = (
+        db.query(RegistroAsistencia)
+        .filter(RegistroAsistencia.id_trabajador == trabajador.id_trabajador)
+        .all()
+    )
+
+    total = len(todos)
+    cumple = len([r for r in todos if r.cumple_epp is True])
+    incumple = total - cumple
+    tasa = (cumple / total * 100) if total > 0 else 0
+
+    # ===========================
+    # 3️⃣ OBTENER SOLO LOS INCUMPLIMIENTOS (LÓGICA ACTUAL SIN CAMBIOS)
+    # ===========================
     registros = (
         db.query(RegistroAsistencia)
         .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
@@ -146,7 +166,6 @@ def obtener_incumplimientos_trabajador(
     resultados = []
 
     for reg in registros:
-
         evidencia = db.query(EvidenciaFallo).filter(EvidenciaFallo.id_registro == reg.id_registro).first()
 
         # Inspector
@@ -159,7 +178,7 @@ def obtener_incumplimientos_trabajador(
         else:
             inspector_info = InspectorInfo(nombre=None, apellido=None)
 
-        # Convertir bytes → base64
+        # Foto base64
         foto_base64 = None
         if evidencia and evidencia.foto_data:
             foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
@@ -185,4 +204,15 @@ def obtener_incumplimientos_trabajador(
             )
         )
 
-    return resultados
+    # ===========================
+    # 4️⃣ RETORNAR UN OBJETO NUEVO
+    # ===========================
+    return {
+        "estadisticas": {
+            "total": total,
+            "cumple": cumple,
+            "incumple": incumple,
+            "tasa": round(tasa, 2)
+        },
+        "historial": resultados
+    }
