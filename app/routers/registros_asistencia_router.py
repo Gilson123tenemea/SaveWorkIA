@@ -31,34 +31,21 @@ def registrar_asistencia(
 ):
     """
     Registra asistencia de trabajador (sin análisis EPP)
-    Se usa cuando ya se hizo análisis previo
-    
-    Args:
-        asistencia: datos de asistencia
-        db: sesión de BD
-    
-    Returns:
-        RegistroAsistencia creado
     """
     try:
-        # Crear asistencia normal
         registro = crear_registro_asistencia(db, asistencia)
-        
-        # 🔥 Si no cumple EPP → Crear evidencia automáticamente
-        if not registro.cumple_epp:
-            evidencia = EvidenciaFalloCreate(
-                foto_url="pendiente",  # Se actualiza luego
-                detalle_fallo=getattr(asistencia, 'detalle_fallo', "Incumplimiento EPP"),
-                id_registro=registro.id_registro,
-            )
-            guardar_evidencia_fallo(db, evidencia)
-        
+
+        # Este endpoint NO genera evidencia porque NO hay frame ni análisis
+        # La evidencia solo se crea en /verificar-epp
+
         return registro
+    
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"❌ Error al registrar asistencia: {str(e)}"
         )
+
 
 @router.post("/verificar-epp/{id_camara}")
 def verificar_epp(
@@ -67,34 +54,24 @@ def verificar_epp(
     request_body: dict = Body(...),
     db: Session = Depends(get_db)
 ):
-    """
-    🔥 VERIFICA EPP Y CREA REGISTROS
-    """
     try:
-        # Obtener trabajador_data del body
         trabajador_data = request_body if isinstance(request_body, dict) else {}
-        
+
         print(f"\n{'='*60}")
         print(f"🔍 Verificando EPP: {codigo_trabajador}")
         print(f"📋 Datos recibidos: {trabajador_data.get('id_trabajador')}")
         print(f"{'='*60}\n")
-        
+
         # 1️⃣ OBTENER FRAME
         frame = obtener_ultimo_frame_camara(id_camara)
         if frame is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"❌ No hay stream activo"
-            )
-        
-        # 2️⃣ ANALIZAR EPP
+            raise HTTPException(400, "❌ No hay stream activo")
+
+        # 2️⃣ ANALIZAR FRAME
         analisis = analizar_frame_epp(frame)
         if analisis is None:
-            raise HTTPException(
-                status_code=500,
-                detail="❌ Error analizando frame"
-            )
-        
+            raise HTTPException(500, "❌ Error analizando frame")
+
         # 3️⃣ CREAR REGISTRO
         asistencia = RegistroAsistenciaCreate(
             cumple_epp=analisis['cumple_epp'],
@@ -107,29 +84,25 @@ def verificar_epp(
             id_inspector=trabajador_data.get('id_inspector'),
             detalle_fallo=analisis['detalle_fallo']
         )
-        
+
         registro = crear_registro_asistencia(db, asistencia)
         print(f"✅ Registro creado: ID {registro.id_registro}")
-        
+
         # 4️⃣ CREAR EVIDENCIA SI FALLA
-        foto_url = None
+        evidencia_base64 = None
+
         if not registro.cumple_epp:
-            foto_url = guardar_foto_desde_base64(
-                base64_str=analisis['foto_base64'],
-                id_trabajador=trabajador_data['id_trabajador'],
-                id_registro=registro.id_registro,
-                usar_temporal=False
-            )
-            
             evidencia = EvidenciaFalloCreate(
-                foto_url=foto_url or "pendiente",
+                foto_base64=analisis['foto_base64'],   # ⬅️ GUARDAR DIRECTO EN BD
                 detalle_fallo=analisis['detalle_fallo'],
-                id_registro=registro.id_registro,
+                id_registro=registro.id_registro
             )
+
             guardar_evidencia_fallo(db, evidencia)
-        
+            evidencia_base64 = analisis['foto_base64']
+
         print(f"\n✅ {'CUMPLE EPP' if registro.cumple_epp else 'NO CUMPLE EPP'}\n")
-        
+
         return {
             "status": "✅ CUMPLE EPP" if registro.cumple_epp else "❌ NO CUMPLE EPP",
             "mensaje": analisis['detalle_fallo'],
@@ -143,25 +116,20 @@ def verificar_epp(
                 "cumple_epp": registro.cumple_epp,
                 "fecha_hora": registro.fecha_hora.isoformat()
             },
-            "detecciones": {
-                "casco": analisis['detecciones']['casco']['detectado'],
-                "chaleco": analisis['detecciones']['chaleco']['detectado'],
-                "guantes": analisis['detecciones']['guantes']['detectado'],
-                "botas": analisis['detecciones']['botas']['detectado'],
-                "lentes": analisis['detecciones']['lentes']['detectado']
-            },
+            "detecciones": analisis['detecciones'],
             "evidencia": {
                 "tiene_fallo": not registro.cumple_epp,
-                "foto_url": foto_url,
+                "foto_base64": evidencia_base64,   # ⬅️ ahora sí devuelve imagen real
                 "detalle": analisis['detalle_fallo']
             }
         }
-    
+
     except HTTPException as e:
-        print(f"❌ Error HTTP: {e.detail}\n")
+        print(f"❌ Error HTTP: {e.detail}")
         raise e
+
     except Exception as e:
-        print(f"❌ Error: {str(e)}\n")
+        print(f"❌ Error inesperado: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"❌ {str(e)}")
+        raise HTTPException(500, f"❌ {str(e)}")

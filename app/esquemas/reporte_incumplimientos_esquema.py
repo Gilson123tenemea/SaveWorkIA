@@ -25,7 +25,7 @@ class CamaraInfo(BaseModel):
 
 class EvidenciaInfo(BaseModel):
     detalle: str
-    foto_url: str
+    foto_base64: str | None = None
     fecha: datetime
 
 

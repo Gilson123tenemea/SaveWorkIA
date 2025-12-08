@@ -11,6 +11,7 @@ from app.modelos.persona import Persona
 from app.modelos.inspector import Inspector
 from app.modelos.camara_modelo import Camara
 from app.modelos.zona_modelo import Zona
+import base64
 
 from app.esquemas.reporte_incumplimientos_esquema import (
     IncumplimientoResponse,
@@ -23,7 +24,7 @@ from app.esquemas.reporte_incumplimientos_esquema import (
 
 def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
 
-    hoy = date.today()  # Ejemplo: 2025-12-04
+    hoy = date.today()
 
     registros = (
         db.query(RegistroAsistencia)
@@ -35,8 +36,8 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
         )
         .filter(
             RegistroAsistencia.id_supervisor == id_supervisor,
-            RegistroAsistencia.cumple_epp == False,             # Solo incumplimientos
-            func.date(RegistroAsistencia.fecha_hora) == hoy     # 🔥 Solo registros del día actual
+            RegistroAsistencia.cumple_epp == False,
+            func.date(RegistroAsistencia.fecha_hora) == hoy
         )
         .all()
     )
@@ -56,7 +57,7 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
 
         trabajador_persona = reg.trabajador.persona
 
-        # Inspector corregido (sin operador walrus)
+        # Inspector
         if reg.inspector:
             inspector_persona = db.query(Persona).filter(
                 Persona.id_persona == reg.inspector.id_persona_inspector
@@ -72,6 +73,11 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
         camara = reg.camara
         zona = camara.zona
 
+        # ✅ Convertir bytes a base64
+        foto_base64 = None
+        if evidencia and evidencia.foto_data:
+            foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
+
         resultados.append(
             IncumplimientoResponse(
                 trabajador=TrabajadorInfo(
@@ -86,7 +92,7 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
                 ),
                 evidencia=EvidenciaInfo(
                     detalle=evidencia.detalle_fallo,
-                    foto_url=evidencia.foto_url,
+                    foto_base64=foto_base64,
                     fecha=evidencia.fecha_captura
                 ),
                 fecha_registro=reg.fecha_hora
@@ -96,6 +102,7 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
     return resultados
 
 
+
 def obtener_incumplimientos_trabajador(
     db: Session,
     cedula: str | None = None,
@@ -103,7 +110,6 @@ def obtener_incumplimientos_trabajador(
     id_trabajador: int | None = None
 ):
 
-    # Buscar trabajador usando cualquier parámetro
     query = db.query(Trabajador).join(Persona)
 
     if cedula:
@@ -122,7 +128,6 @@ def obtener_incumplimientos_trabajador(
 
     persona = trabajador.persona
 
-    # Obtener todos los registros incumplidos del trabajador
     registros = (
         db.query(RegistroAsistencia)
         .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
@@ -144,7 +149,7 @@ def obtener_incumplimientos_trabajador(
 
         evidencia = db.query(EvidenciaFallo).filter(EvidenciaFallo.id_registro == reg.id_registro).first()
 
-        inspector_info = None
+        # Inspector
         if reg.inspector:
             inspector_persona = reg.inspector.persona
             inspector_info = InspectorInfo(
@@ -153,6 +158,11 @@ def obtener_incumplimientos_trabajador(
             )
         else:
             inspector_info = InspectorInfo(nombre=None, apellido=None)
+
+        # Convertir bytes → base64
+        foto_base64 = None
+        if evidencia and evidencia.foto_data:
+            foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
 
         resultados.append(
             IncumplimientoResponse(
@@ -168,7 +178,7 @@ def obtener_incumplimientos_trabajador(
                 ),
                 evidencia=EvidenciaInfo(
                     detalle=evidencia.detalle_fallo,
-                    foto_url=evidencia.foto_url,
+                    foto_base64=foto_base64,
                     fecha=evidencia.fecha_captura
                 ),
                 fecha_registro=reg.fecha_hora
