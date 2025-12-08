@@ -56,6 +56,8 @@ from app.routers import (
     registros_asistencia_router,
     evidencias_fallo_router,
     reporte_incumplimientos_router,
+    dashboard_router,
+    dashboard_supervisor,
 
 
 )
@@ -108,6 +110,8 @@ app.include_router(camara_ia.router)
 app.include_router(registros_asistencia_router.router)
 app.include_router(evidencias_fallo_router.router)
 app.include_router(reporte_incumplimientos_router.router)
+app.include_router(dashboard_router.router)
+app.include_router(dashboard_supervisor.router)
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
 # ----------------------------------------------------------------------
