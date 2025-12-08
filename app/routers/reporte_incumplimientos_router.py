@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_db
 from app.esquemas.reporte_incumplimientos_esquema import IncumplimientoResponse, ReporteTrabajadorResponse
-from app.servicios.reporte_incumplimientos_servicio import obtener_incumplimientos_por_supervisor, obtener_incumplimientos_trabajador
+from app.servicios.reporte_incumplimientos_servicio import obtener_incumplimientos_por_supervisor, obtener_incumplimientos_trabajador, obtener_detecciones_filtradas, obtener_inspectores_por_empresa, obtener_zonas_filtradas
 
 router = APIRouter(prefix="/reportes/incumplimientos", tags=["Reportes - Incumplimientos"])
 
@@ -33,3 +33,29 @@ def historial_trabajador(
         codigo_trabajador,
         id_trabajador
     )
+
+@router.get("/detecciones", response_model=list[IncumplimientoResponse])
+def filtrar_detecciones(
+    id_empresa: int,
+    fecha_desde: str | None = None,
+    fecha_hasta: str | None = None,
+    id_inspector: int | None = None,
+    id_zona: int | None = None,
+    db: Session = Depends(get_db)
+):
+    return obtener_detecciones_filtradas(
+        db=db,
+        id_empresa=id_empresa,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        id_inspector=id_inspector,
+        id_zona=id_zona
+    )
+
+@router.get("/inspectores", tags=["Reportes - Filtros"])
+def listar_inspectores(id_empresa: int, db: Session = Depends(get_db)):
+    return obtener_inspectores_por_empresa(db, id_empresa)
+
+@router.get("/zonas", tags=["Reportes - Filtros"])
+def listar_zonas(id_empresa: int, id_inspector: int | None = None, db: Session = Depends(get_db)):
+    return obtener_zonas_filtradas(db, id_empresa, id_inspector)

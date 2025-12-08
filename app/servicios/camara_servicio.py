@@ -21,11 +21,6 @@ import numpy as np
 # 🔹 REGLA DE NEGOCIO DE DUPLICADOS
 # ============================================================
 def validar_unicidad_camara(db: Session, camara: CamaraCreate):
-    """
-    - Permite duplicados entre empresas.
-    - Bloquea duplicados en la misma empresa.
-    - Si existe una cámara con borrado=False → se permite crear otra.
-    """
 
     zona = db.query(Zona).filter(
         Zona.id_Zona == camara.id_zona,
@@ -40,18 +35,17 @@ def validar_unicidad_camara(db: Session, camara: CamaraCreate):
 
     empresa_id = zona.id_empresa_zona
 
-    # 🔹 Buscar cámaras en la MISMA EMPRESA (no solo en la zona)
     zonas_empresa = db.query(Zona.id_Zona).filter(
         Zona.id_empresa_zona == empresa_id
     ).subquery()
 
     # -------------------------
-    # 🔍 VALIDAR CÓDIGO
+    # 🔍 VALIDAR CÓDIGO (esto sí se mantiene)
     # -------------------------
     codigo_dup = db.query(Camara).filter(
         Camara.codigo == camara.codigo,
-        Camara.id_zona.in_(zonas_empresa),   # misma empresa
-        Camara.borrado == True               # solo activas
+        Camara.id_zona.in_(zonas_empresa),
+        Camara.borrado == True
     ).first()
 
     if codigo_dup:
@@ -60,21 +54,7 @@ def validar_unicidad_camara(db: Session, camara: CamaraCreate):
             detail="Ya existe una cámara activa con ese código en esta empresa"
         )
 
-    # -------------------------
-    # 🔍 VALIDAR IP
-    # -------------------------
-    ip_dup = db.query(Camara).filter(
-        Camara.ipAddress == camara.ipAddress,
-        Camara.id_zona.in_(zonas_empresa),   # misma empresa
-        Camara.borrado == True
-    ).first()
-
-    if ip_dup:
-        raise HTTPException(
-            status_code=400,
-            detail="Ya existe una cámara activa con esa IP en esta empresa"
-        )
-
+    # ❌ VALIDACIÓN DE IP ELIMINADA
 
 # ============================================================
 # 🔹 CREAR CÁMARA

@@ -12,6 +12,9 @@ from app.modelos.inspector import Inspector
 from app.modelos.camara_modelo import Camara
 from app.modelos.zona_modelo import Zona
 import base64
+from datetime import datetime
+from app.modelos.inspector_zona import InspectorZona
+from datetime import datetime, timedelta
 
 from app.esquemas.reporte_incumplimientos_esquema import (
     IncumplimientoResponse,
@@ -216,3 +219,207 @@ def obtener_incumplimientos_trabajador(
         },
         "historial": resultados
     }
+
+def obtener_detecciones_filtradas(
+    db: Session,
+    id_empresa: int,
+    fecha_desde: str | None,
+    fecha_hasta: str | None,
+    id_inspector: int | None,
+    id_zona: int | None,
+):
+    query = (
+        db.query(RegistroAsistencia)
+        .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
+        .options(
+            joinedload(RegistroAsistencia.trabajador).joinedload(Trabajador.persona),
+            joinedload(RegistroAsistencia.inspector).joinedload(Inspector.persona),
+            joinedload(RegistroAsistencia.camara).joinedload(Camara.zona)
+        )
+        .filter(
+            RegistroAsistencia.id_empresa == id_empresa,
+            RegistroAsistencia.cumple_epp == False
+        )
+    )
+
+    # ============================
+    # 1️⃣ FILTRO POR FECHAS
+    # ============================
+    if fecha_desde:
+       fecha_d = datetime.strptime(fecha_desde, "%Y-%m-%d")
+       query = query.filter(RegistroAsistencia.fecha_hora >= fecha_d)
+
+    if fecha_hasta:
+       fecha_h = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1) - timedelta(seconds=1)
+       query = query.filter(RegistroAsistencia.fecha_hora <= fecha_h)
+
+
+    # ==================================
+    # 2️⃣ FILTRO POR INSPECTOR
+    # ==================================
+    zonas_validas = []
+
+    if id_inspector:
+        query = query.filter(RegistroAsistencia.id_inspector == id_inspector)
+
+        zonas_inspector = (
+            db.query(InspectorZona.id_zona_inspectorzona)
+            .filter(
+                InspectorZona.id_inspector_inspectorzona == id_inspector,
+                InspectorZona.borrado == True
+            )
+            .all()
+        )
+        zonas_validas = [z[0] for z in zonas_inspector]
+
+        if id_zona is None:
+            query = query.filter(RegistroAsistencia.id_zona.in_(zonas_validas))
+
+    else:
+        # ============================
+        # 3️⃣ SIN INSPECTOR → ZONAS = TODAS LAS DE LA EMPRESA
+        # ============================
+        zonas_empresa = (
+            db.query(Zona.id_Zona)
+            .filter(
+                Zona.id_empresa_zona == id_empresa,
+                Zona.borrado == True
+            )
+            .all()
+        )
+        zonas_validas = [z[0] for z in zonas_empresa]
+
+        if id_zona is None:
+            query = query.filter(RegistroAsistencia.id_zona.in_(zonas_validas))
+
+    # ==================================
+    # 4️⃣ FILTRO FINAL POR ZONA (si el usuario la seleccionó)
+    # ==================================
+    if id_zona:
+        query = query.filter(RegistroAsistencia.id_zona == id_zona)
+
+    registros = query.order_by(RegistroAsistencia.fecha_hora.desc()).all()
+
+    resultados = []
+
+    for reg in registros:
+        evidencia = (
+            db.query(EvidenciaFallo)
+            .filter(EvidenciaFallo.id_registro == reg.id_registro)
+            .first()
+        )
+
+        # Inspector info
+        if reg.inspector:
+            ins = reg.inspector.persona
+            inspector_info = InspectorInfo(nombre=ins.nombre, apellido=ins.apellido)
+        else:
+            inspector_info = InspectorInfo(nombre=None, apellido=None)
+
+        # Foto base64
+        foto_base64 = None
+        if evidencia and evidencia.foto_data:
+            foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
+
+        tper = reg.trabajador.persona
+
+        resultados.append(
+            IncumplimientoResponse(
+                trabajador=TrabajadorInfo(
+                    nombre=tper.nombre,
+                    apellido=tper.apellido,
+                    cedula=tper.cedula,
+                ),
+                inspector=inspector_info,
+                camara=CamaraInfo(
+                    codigo=reg.camara.codigo,
+                    zona=reg.camara.zona.nombreZona,
+                ),
+                evidencia=EvidenciaInfo(
+                    detalle=evidencia.detalle_fallo,
+                    foto_base64=foto_base64,
+                    fecha=evidencia.fecha_captura,
+                ),
+                fecha_registro=reg.fecha_hora,
+            )
+        )
+
+    return resultados
+
+def obtener_inspectores_por_empresa(db: Session, id_empresa: int):
+
+    inspectores_ids = (
+        db.query(InspectorZona.id_inspector_inspectorzona)
+        .join(Zona, Zona.id_Zona == InspectorZona.id_zona_inspectorzona)
+        .filter(
+            Zona.id_empresa_zona == id_empresa,
+            Zona.borrado == True,
+            InspectorZona.borrado == True
+        )
+        .distinct()
+        .all()
+    )
+
+    ids = [row[0] for row in inspectores_ids]
+
+    inspectores = (
+        db.query(Inspector)
+        .filter(
+            Inspector.id_inspector.in_(ids),
+            Inspector.borrado == True
+        )
+        .all()
+    )
+
+    resultados = []
+    for ins in inspectores:
+        persona = ins.persona
+        resultados.append({
+            "id": ins.id_inspector,
+            "nombre": persona.nombre,
+            "apellido": persona.apellido
+        })
+
+    return resultados
+
+def obtener_zonas_filtradas(db: Session, id_empresa: int, id_inspector: int | None):
+
+    # ===========================
+    # 1️⃣ SIN INSPECTOR → TODAS LAS ZONAS DE LA EMPRESA
+    # ===========================
+    if not id_inspector:
+        zonas = (
+            db.query(Zona)
+            .filter(
+                Zona.id_empresa_zona == id_empresa,
+                Zona.borrado == True
+            )
+            .all()
+        )
+
+        return [{"id": z.id_Zona, "nombre": z.nombreZona} for z in zonas]
+
+    # ===========================
+    # 2️⃣ CON INSPECTOR → ZONAS ASIGNADAS
+    # ===========================
+    zonas_inspector_ids = (
+        db.query(InspectorZona.id_zona_inspectorzona)
+        .filter(
+            InspectorZona.id_inspector_inspectorzona == id_inspector,
+            InspectorZona.borrado == True
+        )
+        .all()
+    )
+
+    ids_zonas = [z[0] for z in zonas_inspector_ids]
+
+    zonas = (
+        db.query(Zona)
+        .filter(
+            Zona.id_Zona.in_(ids_zonas),
+            Zona.borrado == True
+        )
+        .all()
+    )
+
+    return [{"id": z.id_Zona, "nombre": z.nombreZona} for z in zonas]
