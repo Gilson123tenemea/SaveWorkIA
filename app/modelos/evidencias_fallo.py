@@ -11,6 +11,9 @@ class EvidenciaFallo(Base):
     detalle_fallo = Column(String(200), nullable=False)
     fecha_captura = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
     borrado = Column(Boolean, default=False)
+    estado = Column(Boolean, nullable=True, default=None)
+    observaciones = Column(String(300), nullable=True, default=None)
+
 
     id_registro = Column(Integer, ForeignKey("registros_asistencia.id_registro"), nullable=False)
 

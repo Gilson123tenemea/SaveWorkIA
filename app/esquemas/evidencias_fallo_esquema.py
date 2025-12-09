@@ -16,3 +16,7 @@ class EvidenciaFalloResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class EvidenciaFalloUpdate(BaseModel):
+    estado: bool | None = None
+    observaciones: str | None = None
