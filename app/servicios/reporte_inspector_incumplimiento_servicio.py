@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 import base64
 from datetime import datetime, timedelta
+from fastapi import HTTPException
 
 from app.modelos.registros_asistencia import RegistroAsistencia
 from app.modelos.evidencias_fallo import EvidenciaFallo
@@ -103,5 +104,75 @@ def obtener_incumplimientos_por_inspector(
     )
 )
 
+
+    return resultados
+
+def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
+
+    # 1️⃣ BUSCAR TRABAJADOR POR CEDULA
+    trabajador = (
+        db.query(Trabajador)
+        .join(Persona)
+        .filter(Persona.cedula == cedula)
+        .first()
+    )
+
+    if not trabajador:
+        raise HTTPException(404, detail="Trabajador no encontrado")
+
+    persona = trabajador.persona
+
+    # 2️⃣ OBTENER INCUMPLIMIENTOS DEL TRABAJADOR
+    registros = (
+        db.query(RegistroAsistencia)
+        .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
+        .options(
+            joinedload(RegistroAsistencia.camara).joinedload(Camara.zona)
+        )
+        .filter(
+            RegistroAsistencia.id_trabajador == trabajador.id_trabajador,
+            RegistroAsistencia.cumple_epp == False
+        )
+        .order_by(RegistroAsistencia.fecha_hora.desc())
+        .all()
+    )
+
+    resultados = []
+
+    for reg in registros:
+        evidencia = (
+            db.query(EvidenciaFallo)
+            .filter(EvidenciaFallo.id_registro == reg.id_registro)
+            .first()
+        )
+
+        # Convertir imagen a base64
+        foto_base64 = None
+        if evidencia and evidencia.foto_data:
+            foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
+
+        # Armar respuesta
+        resultados.append(
+            IncumplimientoInspectorResponse(
+                trabajador=TrabajadorInfo(
+                    nombre=persona.nombre,
+                    apellido=persona.apellido,
+                    cedula=persona.cedula
+                ),
+                camara=CamaraInfo(
+                    codigo=reg.camara.codigo,
+                    zona=reg.camara.zona.nombreZona
+                ),
+                evidencia=EvidenciaInfo(
+                    id_evidencia=evidencia.id_evidencia,
+                    detalle=evidencia.detalle_fallo,
+                    foto_base64=foto_base64,
+                    fecha=evidencia.fecha_captura,
+                    estado=evidencia.estado,
+                    observaciones=evidencia.observaciones
+                ),
+                fecha_registro=reg.fecha_hora
+            )
+        )
 
     return resultados

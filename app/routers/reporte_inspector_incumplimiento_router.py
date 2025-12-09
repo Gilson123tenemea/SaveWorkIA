@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_db
 from app.esquemas.reporte_inspector_incumplimiento_esquema import IncumplimientoInspectorResponse
-from app.servicios.reporte_inspector_incumplimiento_servicio import obtener_incumplimientos_por_inspector
+from app.servicios.reporte_inspector_incumplimiento_servicio import obtener_incumplimientos_por_inspector, obtener_incumplimientos_por_cedula
 
 router = APIRouter(
     prefix="/reportes/inspectores",
@@ -28,3 +28,10 @@ def listar_incumplimientos_inspector(
         fecha_hasta=fecha_hasta,
         id_zona=id_zona
     )
+
+@router.get("/trabajador", response_model=list[IncumplimientoInspectorResponse])
+def historial_por_cedula(
+    cedula: str,
+    db: Session = Depends(get_db)
+):
+    return obtener_incumplimientos_por_cedula(db, cedula)
