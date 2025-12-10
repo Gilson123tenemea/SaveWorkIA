@@ -6,7 +6,7 @@ import base64
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from app.modelos.inspector_zona import InspectorZona
-
+from datetime import datetime, timedelta
 from app.modelos.registros_asistencia import RegistroAsistencia
 from app.modelos.evidencias_fallo import EvidenciaFallo
 from app.modelos.trabajador import Trabajador
@@ -41,6 +41,20 @@ def obtener_incumplimientos_por_inspector(
             RegistroAsistencia.cumple_epp == False
         )
     )
+
+        # ============================================
+    # 🔥 FILTRAR SOLO LOS INCUMPLIMIENTOS DEL DÍA
+    # (Solo si NO se aplican filtros manuales)
+    # ============================================
+    if not fecha_desde and not fecha_hasta and not id_zona:
+        inicio_hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        fin_hoy = inicio_hoy + timedelta(days=1) - timedelta(seconds=1)
+
+        query = query.filter(
+            RegistroAsistencia.fecha_hora >= inicio_hoy,
+            RegistroAsistencia.fecha_hora <= fin_hoy
+        )
+
 
     # ============================
     # 1️⃣ FILTRO POR FECHA DESDE
