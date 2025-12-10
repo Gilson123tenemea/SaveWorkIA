@@ -5,6 +5,7 @@ from sqlalchemy import func
 import base64
 from datetime import datetime, timedelta
 from fastapi import HTTPException
+from app.modelos.inspector_zona import InspectorZona
 
 from app.modelos.registros_asistencia import RegistroAsistencia
 from app.modelos.evidencias_fallo import EvidenciaFallo
@@ -176,3 +177,37 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
         )
 
     return resultados
+
+
+def obtener_zonas_por_inspector(db: Session, id_inspector: int):
+
+    zonas_ids = (
+        db.query(InspectorZona.id_zona_inspectorzona)
+        .filter(
+            InspectorZona.id_inspector_inspectorzona == id_inspector,
+            InspectorZona.borrado == True  
+        )
+        .all()
+    )
+
+    ids = [z[0] for z in zonas_ids]
+
+    if not ids:
+        return []  
+
+    zonas = (
+        db.query(Zona)
+        .filter(
+            Zona.id_Zona.in_(ids),
+            Zona.borrado == True
+        )
+        .all()
+    )
+
+    return [
+        {
+            "id": z.id_Zona,
+            "nombre": z.nombreZona
+        }
+        for z in zonas
+    ]
