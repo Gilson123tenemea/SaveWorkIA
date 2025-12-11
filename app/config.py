@@ -6,7 +6,7 @@ DB_USER = "root"
 DB_PASSWORD = "1234"      
 DB_HOST = "localhost"      
 DB_PORT = 3307            
-DB_NAME = "saveworkdboriginal2"     
+DB_NAME = "saveworkdb"     
 
 
 SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
