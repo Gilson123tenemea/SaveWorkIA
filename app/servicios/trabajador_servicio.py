@@ -530,3 +530,42 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
         "inspector": inspector_data  # 👈 objeto opcional por si quieres usar más tarde en el front
     }
 
+
+def login_trabajador(db: Session, correo: str, contrasena: str):
+
+    # 1️⃣ Buscar persona por correo
+    persona = db.query(Persona).filter(
+        Persona.correo == correo,
+        Persona.borrado == True
+    ).first()
+
+    if not persona:
+        raise HTTPException(status_code=404, detail="Correo no encontrado")
+
+    # 2️⃣ Validar rol
+    if persona.rol != "trabajador":
+        raise HTTPException(status_code=400, detail="El usuario no es trabajador")
+
+    # 3️⃣ Validar contraseña
+    if not verificar_contrasena(contrasena, persona.contrasena):
+        raise HTTPException(status_code=400, detail="Contraseña incorrecta")
+
+    # 4️⃣ Buscar datos del trabajador en su tabla
+    trabajador = db.query(Trabajador).filter(
+        Trabajador.id_persona_trabajador == persona.id_persona,
+        Trabajador.borrado == True
+    ).first()
+
+    if not trabajador:
+        raise HTTPException(status_code=404, detail="No existe registro del trabajador")
+
+    # 5️⃣ Construir respuesta final
+    return {
+        "mensaje": "Inicio de sesión exitoso",
+        "id_trabajador": trabajador.id_trabajador,
+        "id_supervisor": trabajador.id_supervisor_trabajador,
+        "id_empresa_trabajador": trabajador.id_empresa,
+        "nombre": persona.nombre,
+        "correo": persona.correo,
+        "rol": persona.rol
+    }

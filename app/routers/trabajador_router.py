@@ -9,6 +9,8 @@ from app.esquemas.trabajador_esquema import (
     TrabajadorResponse
 )
 from app.servicios import trabajador_servicio
+from app.esquemas.trabajador_esquema import LoginTrabajador
+from app.servicios.trabajador_servicio import login_trabajador
 
 router = APIRouter(prefix="/trabajadores", tags=["Trabajadores"])
 
@@ -56,6 +58,9 @@ def validar_cedula_supervisor(cedula: str, db: Session = Depends(get_db)):
 def listar_trabajadores(db: Session = Depends(get_db)):
     return trabajador_servicio.obtener_trabajadores_completos(db)
 
+@router.post("/login")
+def login(data: LoginTrabajador, db: Session = Depends(get_db)):
+    return login_trabajador(db, data.correo, data.contrasena)
 
 # --------------------------------------------------
 # OBTENER POR ID

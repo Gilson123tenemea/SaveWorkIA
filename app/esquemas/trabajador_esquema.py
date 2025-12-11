@@ -60,3 +60,7 @@ class TrabajadorResponse(TrabajadorBase):
 
     class Config:
         orm_mode = True
+
+class LoginTrabajador(BaseModel):
+    correo: EmailStr
+    contrasena: str
