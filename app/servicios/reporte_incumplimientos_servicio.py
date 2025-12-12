@@ -27,7 +27,8 @@ from app.esquemas.reporte_incumplimientos_esquema import (
 
 def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
 
-    hoy = date.today()
+    hoy = datetime.now().date()
+
 
     registros = (
         db.query(RegistroAsistencia)
