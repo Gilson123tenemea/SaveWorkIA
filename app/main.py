@@ -60,6 +60,8 @@ from app.routers import (
     dashboard_supervisor,
     reporte_inspector_incumplimiento_router,
     inspector_notificaciones_router,
+    dashboard_inspector,
+
 
 
 )
@@ -116,6 +118,7 @@ app.include_router(dashboard_router.router)
 app.include_router(dashboard_supervisor.router)
 app.include_router(reporte_inspector_incumplimiento_router.router)
 app.include_router(inspector_notificaciones_router.router)
+app.include_router(dashboard_inspector.router)
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
 # ----------------------------------------------------------------------
