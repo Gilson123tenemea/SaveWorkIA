@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.config import get_db
-from app.esquemas.reporte_inspector_incumplimiento_esquema import IncumplimientoInspectorResponse
+from app.esquemas.reporte_inspector_incumplimiento_esquema import (
+    IncumplimientoInspectorResponse,
+    HistorialIncumplimientoInspectorResponse
+)
 from app.servicios.reporte_inspector_incumplimiento_servicio import obtener_incumplimientos_por_inspector, obtener_incumplimientos_por_cedula, obtener_zonas_por_inspector
 
 router = APIRouter(
@@ -29,12 +32,16 @@ def listar_incumplimientos_inspector(
         id_zona=id_zona
     )
 
-@router.get("/trabajador", response_model=list[IncumplimientoInspectorResponse])
+@router.get(
+    "/trabajador",
+    response_model=HistorialIncumplimientoInspectorResponse
+)
 def historial_por_cedula(
     cedula: str,
     db: Session = Depends(get_db)
 ):
     return obtener_incumplimientos_por_cedula(db, cedula)
+
 
 
 @router.get("/zonas")

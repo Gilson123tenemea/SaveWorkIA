@@ -2,6 +2,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+from typing import List
 
 
 class TrabajadorInfo(BaseModel):
@@ -32,3 +33,15 @@ class IncumplimientoInspectorResponse(BaseModel):
     camara: CamaraInfo
     evidencia: EvidenciaInfo
     fecha_registro: datetime
+
+
+class EstadisticasIncumplimiento(BaseModel):
+    total: int
+    cumple: int
+    incumple: int
+    tasa: float
+
+
+class HistorialIncumplimientoInspectorResponse(BaseModel):
+    estadisticas: EstadisticasIncumplimiento
+    historial: List[IncumplimientoInspectorResponse]

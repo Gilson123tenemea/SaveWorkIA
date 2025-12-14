@@ -123,7 +123,6 @@ def obtener_incumplimientos_por_inspector(
     return resultados
 
 def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
-
     # 1️⃣ BUSCAR TRABAJADOR POR CEDULA
     trabajador = (
         db.query(Trabajador)
@@ -137,7 +136,23 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
 
     persona = trabajador.persona
 
-    # 2️⃣ OBTENER INCUMPLIMIENTOS DEL TRABAJADOR
+    # ===========================
+    # 2️⃣ OBTENER TODOS LOS REGISTROS DEL TRABAJADOR (para estadisticas)
+    # ===========================
+    todos = (
+        db.query(RegistroAsistencia)
+        .filter(RegistroAsistencia.id_trabajador == trabajador.id_trabajador)
+        .all()
+    )
+
+    total = len(todos)
+    cumple = len([r for r in todos if r.cumple_epp is True])
+    incumple = total - cumple
+    tasa = (cumple / total * 100) if total > 0 else 0
+
+    # ===========================
+    # 3️⃣ OBTENER LOS INCUMPLIMIENTOS
+    # ===========================
     registros = (
         db.query(RegistroAsistencia)
         .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
@@ -153,7 +168,6 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
     )
 
     resultados = []
-
     for reg in registros:
         evidencia = (
             db.query(EvidenciaFallo)
@@ -190,7 +204,18 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
             )
         )
 
-    return resultados
+    # ===========================
+    # 4️⃣ RETORNAR ESTADÍSTICAS Y RESULTADOS
+    # ===========================
+    return {
+        "estadisticas": {
+            "total": total,
+            "cumple": cumple,
+            "incumple": incumple,
+            "tasa": round(tasa, 2)
+        },
+        "historial": resultados
+    }
 
 
 def obtener_zonas_por_inspector(db: Session, id_inspector: int):

@@ -3,12 +3,12 @@ from sqlalchemy.orm import Session
 from datetime import datetime, date
 
 from app.config import get_db
-from app.modelos.trabajador import Trabajador
 from app.modelos.trabajador_zona import TrabajadorZona
 from app.modelos.camara_modelo import Camara
 from app.modelos.registros_asistencia import RegistroAsistencia
 from app.modelos.evidencias_fallo import EvidenciaFallo
 from app.modelos.zona_modelo import Zona
+from app.modelos.inspector_zona import InspectorZona
 
 router = APIRouter(
     prefix="/dashboard-inspector",
@@ -16,51 +16,54 @@ router = APIRouter(
 )
 
 
-@router.get("/{id_zona}")
-def obtener_dashboard_inspector(id_zona: int, db: Session = Depends(get_db)):
+@router.get("/{id_inspector}")
+def obtener_dashboard_inspector(id_inspector: int, db: Session = Depends(get_db)):
 
-    # 1️⃣ Validar zona
-    zona = db.query(Zona).filter(
-        Zona.id_Zona == id_zona,
-        Zona.borrado == True
-    ).first()
-
-    if not zona:
-        raise HTTPException(status_code=404, detail="❌ Zona no encontrada")
-
-    # 2️⃣ Trabajadores asignados a la zona (tabla intermedia)
-    trabajadores = (
-        db.query(TrabajadorZona)
-        .filter(
-            TrabajadorZona.id_zona_trabajadorzona == id_zona,
-            TrabajadorZona.borrado == True
-        )
-        .count()
-    )
-
-    # 3️⃣ Cámaras de la zona
-    camaras_ids = [
-        c.id_camara
-        for c in db.query(Camara).filter(
-            Camara.id_zona == id_zona,
-            Camara.borrado == True
+    # 1️⃣ ZONAS asignadas al inspector
+    zonas_ids = [
+        iz.id_zona_inspectorzona
+        for iz in db.query(InspectorZona).filter(
+            InspectorZona.id_inspector_inspectorzona == id_inspector,
+            InspectorZona.borrado == True
         ).all()
     ]
 
-    # Si no hay cámaras, no hay alertas
+    if not zonas_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="❌ El inspector no tiene zonas asignadas"
+        )
+
+    # 2️⃣ TRABAJADORES (todas las zonas)
+    trabajadores = db.query(TrabajadorZona).filter(
+        TrabajadorZona.id_zona_trabajadorzona.in_(zonas_ids),
+        TrabajadorZona.borrado == True
+    ).count()
+
+    # 3️⃣ CÁMARAS (todas las zonas)
+    camaras = db.query(Camara).filter(
+        Camara.id_zona.in_(zonas_ids),
+        Camara.borrado == True
+    ).all()
+
+    camaras_ids = [c.id_camara for c in camaras]
+
+    camaras_totales = len(camaras)
+    camaras_activas = len([c for c in camaras if c.estado == True])
+
+    # Si no hay cámaras → no hay alertas
     if not camaras_ids:
         return {
-            "zona": {
-                "id_zona": zona.id_Zona,
-                "nombre": zona.nombreZona
-            },
+            "zonas_asignadas": len(zonas_ids),
+            "trabajadores": trabajadores,
             "alertas_hoy": 0,
             "alertas_mes": 0,
-            "trabajadores": trabajadores,
-            "incumplimientos_alta": 0
+            "incumplimientos_alta": 0,
+            "camaras_totales": camaras_totales,
+            "camaras_activas": camaras_activas
         }
 
-    # 4️⃣ Registros de asistencia de esas cámaras
+    # 4️⃣ REGISTROS de asistencia
     registros_ids = [
         r.id_registro
         for r in db.query(RegistroAsistencia).filter(
@@ -71,7 +74,7 @@ def obtener_dashboard_inspector(id_zona: int, db: Session = Depends(get_db)):
     hoy = date.today()
     inicio_mes = hoy.replace(day=1)
 
-    # 🔴 Alertas HOY
+    # 🔴 ALERTAS HOY
     alertas_hoy = db.query(EvidenciaFallo).filter(
         EvidenciaFallo.id_registro.in_(registros_ids),
         EvidenciaFallo.borrado == True,
@@ -79,14 +82,14 @@ def obtener_dashboard_inspector(id_zona: int, db: Session = Depends(get_db)):
         EvidenciaFallo.fecha_captura <= datetime.combine(hoy, datetime.max.time())
     ).count()
 
-    # 🟠 Alertas del MES
+    # 🟠 ALERTAS DEL MES
     alertas_mes = db.query(EvidenciaFallo).filter(
         EvidenciaFallo.id_registro.in_(registros_ids),
         EvidenciaFallo.borrado == True,
         EvidenciaFallo.fecha_captura >= inicio_mes
     ).count()
 
-    # 🔥 Incumplimientos ALTA prioridad (pendientes)
+    # 🔥 INCUMPLIMIENTOS ALTA PRIORIDAD (pendientes)
     incumplimientos_alta = db.query(EvidenciaFallo).filter(
         EvidenciaFallo.id_registro.in_(registros_ids),
         EvidenciaFallo.borrado == True,
@@ -94,12 +97,11 @@ def obtener_dashboard_inspector(id_zona: int, db: Session = Depends(get_db)):
     ).count()
 
     return {
-        "zona": {
-            "id_zona": zona.id_Zona,
-            "nombre": zona.nombreZona
-        },
+        "zonas_asignadas": len(zonas_ids),
+        "trabajadores": trabajadores,
         "alertas_hoy": alertas_hoy,
         "alertas_mes": alertas_mes,
-        "trabajadores": trabajadores,
-        "incumplimientos_alta": incumplimientos_alta
+        "incumplimientos_alta": incumplimientos_alta,
+        "camaras_totales": camaras_totales,
+        "camaras_activas": camaras_activas
     }
