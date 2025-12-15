@@ -1,7 +1,6 @@
-# app/esquemas/reporte_incumplimientos_esquema.py
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 
 class TrabajadorInfo(BaseModel):
@@ -24,17 +23,26 @@ class CamaraInfo(BaseModel):
 
 
 class EvidenciaInfo(BaseModel):
-    detalle: str
-    foto_base64: str | None = None
-    fecha: datetime
+    detalle: Optional[str] = None
+    foto_base64: Optional[str] = None
+    fecha: Optional[datetime] = None
 
 
 class IncumplimientoResponse(BaseModel):
     trabajador: TrabajadorInfo
-    inspector: InspectorInfo
+
+    # 🔥 CLAVE: ahora puede ser None
+    inspector: Optional[InspectorInfo] = None
+
     camara: CamaraInfo
-    evidencia: EvidenciaInfo
     fecha_registro: datetime
+
+    # 🔥 NUEVOS CAMPOS QUE TU BACK YA ENVÍA
+    detecciones: List[str]
+    epps_zona: List[str]
+
+    evidencia: EvidenciaInfo
+
 
 class EstadisticasEPP(BaseModel):
     total: int
@@ -42,6 +50,7 @@ class EstadisticasEPP(BaseModel):
     incumple: int
     tasa: float
 
+
 class ReporteTrabajadorResponse(BaseModel):
     estadisticas: EstadisticasEPP
-    historial: list[IncumplimientoResponse]
+    historial: List[IncumplimientoResponse]
