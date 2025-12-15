@@ -1,7 +1,7 @@
 # app/esquemas/inspector_esquema.py
 from pydantic import BaseModel, EmailStr
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 
 # --- Datos de Persona para Inspector (registro/edición) ---
 class PersonaBase(BaseModel):
@@ -54,8 +54,14 @@ class ZonaAsignadaInspector(BaseModel):
 
     class Config:
         orm_mode = True
+class ZonaAsignadaPerfil(BaseModel):
+    id_Zona: int
+    nombreZona: str
+    fecha_asignacion: Optional[date]
 
-# --- PERFIL DEL INSPECTOR (para el modal de perfil) ---
+    class Config:
+        orm_mode = True
+
 class InspectorPerfil(BaseModel):
     id_inspector: int
     id_persona: int
@@ -67,9 +73,9 @@ class InspectorPerfil(BaseModel):
     direccion: str
     genero: str
     fecha_nacimiento: date
-    zona_asignada: str
     frecuenciaVisita: Optional[str] = None
-    fecha_asignacion: Optional[date] = None
+
+    zonas_asignadas: List[ZonaAsignadaPerfil]  
     fotoBase64: Optional[str] = None
 
     class Config:

@@ -453,10 +453,8 @@ def obtener_zonas_por_inspector(db: Session, id_inspector: int):
     return resultado
 
 
-# ======================================================
-# 🆕 PERFIL DEL INSPECTOR (para el modal de perfil)
-# ======================================================
 def obtener_perfil_inspector(db: Session, id_inspector: int):
+
     inspector = db.query(Inspector).filter(
         Inspector.id_inspector == id_inspector,
         Inspector.borrado == True
@@ -472,11 +470,28 @@ def obtener_perfil_inspector(db: Session, id_inspector: int):
     if not persona:
         raise HTTPException(status_code=404, detail="Persona asociada no encontrada")
 
-    registro = db.query(RegistroSupervisorInspector).filter(
-        RegistroSupervisorInspector.id_inspector_registro == inspector.id_inspector,
-        RegistroSupervisorInspector.borrado == True
-    ).first()
+    # 🔹 TODAS las zonas asignadas al inspector
+    zonas = (
+        db.query(InspectorZona, Zona)
+        .join(Zona, Zona.id_Zona == InspectorZona.id_zona_inspectorzona)
+        .filter(
+            InspectorZona.id_inspector_inspectorzona == inspector.id_inspector,
+            InspectorZona.borrado == True,
+            Zona.borrado == True
+        )
+        .all()
+    )
 
+    zonas_asignadas = []
+    for iz, zona in zonas:
+        zonas_asignadas.append({
+            "id_Zona": zona.id_Zona,
+            "nombreZona": zona.nombreZona,
+            "fecha_asignacion": iz.fecha_asignacion.date()
+            if iz.fecha_asignacion else None
+        })
+
+    # 🔹 FOTO
     foto_base64 = None
     if persona.foto:
         try:
@@ -495,8 +510,8 @@ def obtener_perfil_inspector(db: Session, id_inspector: int):
         "direccion": persona.direccion,
         "genero": persona.genero,
         "fecha_nacimiento": persona.fecha_nacimiento,
-        "zona_asignada": inspector.zona_asignada,
         "frecuenciaVisita": inspector.frecuenciaVisita,
-        "fecha_asignacion": registro.fecha_asignacion if registro else None,
+        "zonas_asignadas": zonas_asignadas,  # ✅ LISTA REAL
         "fotoBase64": foto_base64,
     }
+
