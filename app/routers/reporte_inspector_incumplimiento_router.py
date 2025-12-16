@@ -19,7 +19,7 @@ router = APIRouter(
 def listar_incumplimientos_inspector(
     id_inspector: int,
     fecha_desde: str | None = None,
-    fecha_hasta: str | None = None,
+    fecha_hasta: str | None = None, 
     id_zona: int | None = None,
     db: Session = Depends(get_db)
 ):

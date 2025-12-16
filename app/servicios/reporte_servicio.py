@@ -3,8 +3,10 @@ import io
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
+from sqlalchemy import or_
+from collections import defaultdict
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 
 from fastapi import HTTPException
@@ -27,7 +29,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
 
-
+from app.modelos.camara_modelo import Camara
+from app.modelos.zona_modelo import Zona
+from app.modelos.zona_epp import ZonaEpp
+from app.utils.mapeo_epp import MAPEO_EPP_YOLO
 # -----------------------------
 # Helpers
 # -----------------------------
@@ -167,68 +172,106 @@ def pastel_epp_mas_cumplido(
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
 ) -> List[Tuple[str, int]]:
-    """
-    Lógica compatible con tu BD:
-    - Total de registros en el filtro
-    - Para cada EPP:
-        "cumple EPP" (para ese implemento) = total_registros - registros donde evidencia.detalle_fallo contiene ese epp como faltante
-    Asume que en detalle_fallo guardas algo tipo: "Falta Casco, Chaleco" o similar.
-    """
-    filters = [RegistroAsistencia.id_empresa == id_empresa]
 
-    if id_inspector is not None:
-        filters.append(RegistroAsistencia.id_inspector == id_inspector)
-    if id_zona is not None:
-        filters.append(RegistroAsistencia.id_zona == id_zona)
+    conteo_epp = defaultdict(int)
+
+    # -----------------------------
+    # Query base (SIN evidencia_fallo)
+    # -----------------------------
+    query = (
+        db.query(RegistroAsistencia)
+        .options(
+            joinedload(RegistroAsistencia.camara).joinedload(Camara.zona)
+        )
+        .filter(RegistroAsistencia.id_empresa == id_empresa)
+    )
+
+    if id_inspector:
+        query = query.filter(RegistroAsistencia.id_inspector == id_inspector)
+
+    if id_zona:
+        query = query.filter(RegistroAsistencia.id_zona == id_zona)
+
     if fecha_desde:
-        d = _parse_date(fecha_desde)
-        filters.append(RegistroAsistencia.fecha_hora >= d)
+        query = query.filter(RegistroAsistencia.fecha_hora >= _parse_date(fecha_desde))
+
     if fecha_hasta:
-        h = _end_of_day(_parse_date(fecha_hasta))
-        filters.append(RegistroAsistencia.fecha_hora <= h)
+        query = query.filter(
+            RegistroAsistencia.fecha_hora <= _end_of_day(_parse_date(fecha_hasta))
+        )
 
-    total_registros = (
-        db.query(func.count(RegistroAsistencia.id_registro))
-        .filter(and_(*filters))
-        .scalar()
-    ) or 0
+    registros = query.all()
 
-    if total_registros == 0:
-        return [(lbl, 0) for lbl, _ in EPP_LABELS]
+    if not registros:
+        return []
 
-    # Conteo de NO cumplimiento por EPP según texto en detalle_fallo
-    resultados: List[Tuple[str, int]] = []
+    # -----------------------------
+    # Lógica de cumplimiento REAL
+    # -----------------------------
+    for reg in registros:
 
-    for label, keywords in EPP_LABELS:
-        # Subquery: registros con evidencia cuyo detalle contiene el keyword
-        no_cumple_count = (
-            db.query(func.count(func.distinct(RegistroAsistencia.id_registro)))
-            .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
-            .filter(and_(*filters))
-            .filter(
-                or_(*[
-                    func.lower(EvidenciaFallo.detalle_fallo).like(f"%{kw.lower()}%")
-                    for kw in keywords
-                ])
-            )
-            .scalar()
-        ) or 0
+        # 🔥 Obtener evidencia (como en tus otros servicios)
+        evidencia = (
+            db.query(EvidenciaFallo)
+            .filter(EvidenciaFallo.id_registro == reg.id_registro)
+            .first()
+        )
 
-        cumple = max(total_registros - int(no_cumple_count), 0)
-        resultados.append((label, cumple))
+        zona = reg.camara.zona
 
-    # Ordena de mayor a menor “cumplimiento”
+        # 🔹 EPP obligatorios reales de la zona
+        epps_zona = obtener_epp_humanos_por_zona(db, zona.id_Zona)
+
+        # 🔹 EPP que FALLARON
+        detecciones = []
+        if evidencia and evidencia.detalle_fallo:
+            detecciones = [
+                d.lower().replace("falta", "").strip()
+                for d in evidencia.detalle_fallo.split(",")
+                if d.strip()
+            ]
+
+        # 🔹 Contar cumplimiento
+        for epp in epps_zona:
+            epp_norm = epp.lower().strip()
+
+            # Si NO está en detecciones → CUMPLIÓ
+            if epp_norm not in detecciones:
+                conteo_epp[epp_norm] += 1
+
+    # -----------------------------
+    # Formato final
+    # -----------------------------
+    resultados = [
+        (epp.capitalize(), total)
+        for epp, total in conteo_epp.items()
+    ]
+
     resultados.sort(key=lambda x: x[1], reverse=True)
     return resultados
 
 
-# SQLAlchemy needs or_
-from sqlalchemy import or_
+def obtener_epp_humanos_por_zona(db: Session, id_zona: int) -> list[str]:
+    """
+    Devuelve los EPP obligatorios y activos de una zona
+    SIN duplicados
+    Ej: ["casco", "gafas"]
+    """
 
+    epps = (
+        db.query(ZonaEpp.tipo_epp)
+        .filter(
+            ZonaEpp.id_zona == id_zona,
+            ZonaEpp.activo == True,
+            ZonaEpp.obligatorio == True
+        )
+        .distinct()
+        .all()
+    )
 
-# -----------------------------
-# 3.3) PDF: Trabajadores por zona y rango
-# -----------------------------
+    # Convierte de [(casco,), (gafas,)] → ["casco", "gafas"]
+    return [epp[0] for epp in epps]
+
 # -----------------------------
 # 3.3) PDF: Trabajadores por zona y rango (INSPECTOR)
 # -----------------------------
@@ -328,9 +371,6 @@ def generar_pdf_trabajadores_zona(
     doc.build(story)
 
     return buffer.getvalue()
-
-
-
 
 # -----------------------------
 # 3.4) EXCEL: Asistencia por zona y rango (INSPECTOR)
