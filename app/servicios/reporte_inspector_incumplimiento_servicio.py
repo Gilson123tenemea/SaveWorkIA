@@ -137,7 +137,6 @@ def obtener_epp_humanos_por_zona(db: Session, id_zona: int) -> list[str]:
 
     # Convierte de [(casco,), (gafas,)] → ["casco", "gafas"]
     return [epp[0] for epp in epps]
-
 def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
     # 1️⃣ BUSCAR TRABAJADOR POR CEDULA
     trabajador = (
@@ -153,7 +152,7 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
     persona = trabajador.persona
 
     # ===========================
-    # 2️⃣ OBTENER TODOS LOS REGISTROS DEL TRABAJADOR (para estadisticas)
+    # 2️⃣ ESTADÍSTICAS
     # ===========================
     todos = (
         db.query(RegistroAsistencia)
@@ -167,7 +166,7 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
     tasa = (cumple / total * 100) if total > 0 else 0
 
     # ===========================
-    # 3️⃣ OBTENER LOS INCUMPLIMIENTOS
+    # 3️⃣ INCUMPLIMIENTOS
     # ===========================
     registros = (
         db.query(RegistroAsistencia)
@@ -184,6 +183,7 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
     )
 
     resultados = []
+
     for reg in registros:
         evidencia = (
             db.query(EvidenciaFallo)
@@ -191,12 +191,22 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
             .first()
         )
 
-        # Convertir imagen a base64
+        # 📸 Foto
         foto_base64 = None
         if evidencia and evidencia.foto_data:
             foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
 
-        # Armar respuesta
+        # 🔥 CLASES YOLO DETECTADAS
+        clases_detectadas = []
+        if evidencia and evidencia.detalle_fallo:
+            clases_detectadas = [
+                c.strip() for c in evidencia.detalle_fallo.split(",") if c.strip()
+            ]
+
+        # 🔥 EPP OBLIGATORIOS DE LA ZONA
+        zona = reg.camara.zona
+        epps_zona = obtener_epp_humanos_por_zona(db, zona.id_Zona)
+
         resultados.append(
             IncumplimientoInspectorResponse(
                 trabajador=TrabajadorInfo(
@@ -206,8 +216,13 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
                 ),
                 camara=CamaraInfo(
                     codigo=reg.camara.codigo,
-                    zona=reg.camara.zona.nombreZona
+                    zona=zona.nombreZona
                 ),
+
+                # ✅ NUEVO (CLAVES QUE EL FRONT NECESITA)
+                detecciones=clases_detectadas,
+                epps_zona=epps_zona,
+
                 evidencia=EvidenciaInfo(
                     id_evidencia=evidencia.id_evidencia,
                     detalle=evidencia.detalle_fallo,
@@ -221,7 +236,7 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
         )
 
     # ===========================
-    # 4️⃣ RETORNAR ESTADÍSTICAS Y RESULTADOS
+    # 4️⃣ RESPONSE FINAL
     # ===========================
     return {
         "estadisticas": {
