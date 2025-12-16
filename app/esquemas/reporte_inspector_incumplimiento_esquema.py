@@ -31,6 +31,11 @@ class EvidenciaInfo(BaseModel):
 class IncumplimientoInspectorResponse(BaseModel):
     trabajador: TrabajadorInfo
     camara: CamaraInfo
+
+    # 🔥 AÑADIR ESTOS DOS
+    detecciones: List[str]
+    epps_zona: List[str]
+
     evidencia: EvidenciaInfo
     fecha_registro: datetime
 

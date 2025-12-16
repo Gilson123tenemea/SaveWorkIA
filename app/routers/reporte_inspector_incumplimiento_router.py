@@ -15,7 +15,6 @@ router = APIRouter(
     tags=["Reportes - Inspector"]
 )
 
-
 @router.get("/", response_model=list[IncumplimientoInspectorResponse])
 def listar_incumplimientos_inspector(
     id_inspector: int,
