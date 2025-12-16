@@ -1,10 +1,13 @@
 # app/rutas/reporte_router.py
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import io
-
+from app.modelos.inspector import Inspector
 from app.config import get_db
+from app.modelos.registros_asistencia import RegistroAsistencia 
+from sqlalchemy import func
+
 
 from app.esquemas.reporte_esquema import BarsResponse, BarItem, PieResponse, PieItem
 from app.servicios.reporte_servicio import (
@@ -138,39 +141,76 @@ def estad_epp_pastel(
     total = sum(i.value for i in resp_items)
     return PieResponse(total=total, items=resp_items)
 
+def obtener_empresa_por_inspector(db: Session, id_inspector: int) -> int:
+    inspector = db.query(Inspector).filter(
+        Inspector.id_inspector == id_inspector,
+        Inspector.borrado == True
+    ).first()
+
+    if not inspector:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspector no encontrado"
+        )
+
+    return inspector.id_empresa_inspector
+def obtener_id_empresa_desde_registros(
+    db: Session,
+    id_inspector: int,
+    id_zona: int,
+) -> int:
+    # Busca la empresa asociada a registros de ese inspector en esa zona
+    id_empresa = (
+        db.query(func.max(RegistroAsistencia.id_empresa))
+        .filter(
+            RegistroAsistencia.id_inspector == id_inspector,
+            RegistroAsistencia.id_zona == id_zona,
+        )
+        .scalar()
+    )
+
+    if not id_empresa:
+        raise HTTPException(
+            status_code=404,
+            detail="No hay registros para ese inspector en esa zona (no se pudo determinar la empresa)."
+        )
+
+    return int(id_empresa)
 
 # -----------------------------
 # 4.4) PDF: Trabajadores por zona (con persona + zona + fechas + cumple/no)
 # -----------------------------
 @router.get("/pdf/trabajadores-zona")
 def reporte_pdf_trabajadores_zona(
-    id_empresa: int = Query(...),
+    id_inspector: int = Query(...),
     id_zona: int = Query(...),
     fecha_desde: str = Query(...),
     fecha_hasta: str = Query(...),
-    id_inspector: int | None = Query(None),
     db: Session = Depends(get_db),
 ):
     pdf_bytes = generar_pdf_trabajadores_zona(
         db=db,
-        id_empresa=id_empresa,
+        id_inspector=id_inspector,
         id_zona=id_zona,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
     )
+
+    # ✅ Obtener empresa de forma segura sin depender del modelo Inspector
+    id_empresa = obtener_id_empresa_desde_registros(db, id_inspector, id_zona)
 
     registrar_reporte(
         db=db,
         tipo_reporte="pdf_trabajadores_zona",
         formato="pdf",
         filtros={
-            "id_empresa": id_empresa,
+            "id_inspector": id_inspector,
             "id_zona": id_zona,
             "fecha_desde": fecha_desde,
             "fecha_hasta": fecha_hasta,
         },
-        generado_por="inspector" if id_inspector else "supervisor",
-        id_empresa=id_empresa,
+        generado_por="inspector",
+        id_empresa=id_empresa,      # ✅ ya no falla
         id_inspector=id_inspector,
     )
 
@@ -187,33 +227,34 @@ def reporte_pdf_trabajadores_zona(
 # -----------------------------
 @router.get("/excel/asistencia")
 def reporte_excel_asistencia(
-    id_empresa: int = Query(...),
+    id_inspector: int = Query(...),  
     id_zona: int = Query(...),
     fecha_desde: str = Query(...),
     fecha_hasta: str = Query(...),
-    id_inspector: int | None = Query(None),
     db: Session = Depends(get_db),
 ):
     xlsx_bytes = generar_excel_asistencia(
         db=db,
-        id_empresa=id_empresa,
+        id_inspector=id_inspector,
         id_zona=id_zona,
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
     )
+
+    id_empresa = obtener_empresa_por_inspector(db, id_inspector)
 
     registrar_reporte(
         db=db,
         tipo_reporte="excel_asistencia",
         formato="excel",
         filtros={
-            "id_empresa": id_empresa,
+            "id_inspector": id_inspector,
             "id_zona": id_zona,
             "fecha_desde": fecha_desde,
             "fecha_hasta": fecha_hasta,
         },
-        generado_por="inspector" if id_inspector else "supervisor",
-        id_empresa=id_empresa,
+        generado_por="inspector",
+        id_empresa=id_empresa,          # ✅ CLAVE
         id_inspector=id_inspector,
     )
 

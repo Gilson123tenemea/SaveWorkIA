@@ -229,9 +229,12 @@ from sqlalchemy import or_
 # -----------------------------
 # 3.3) PDF: Trabajadores por zona y rango
 # -----------------------------
+# -----------------------------
+# 3.3) PDF: Trabajadores por zona y rango (INSPECTOR)
+# -----------------------------
 def generar_pdf_trabajadores_zona(
     db: Session,
-    id_empresa: int,
+    id_inspector: int,
     id_zona: int,
     fecha_desde: str,
     fecha_hasta: str,
@@ -239,7 +242,6 @@ def generar_pdf_trabajadores_zona(
     d = _parse_date(fecha_desde)
     h = _end_of_day(_parse_date(fecha_hasta))
 
-    # Traemos registros con joins completos (trabajador -> persona, zona, evidencia)
     rows = (
         db.query(
             RegistroAsistencia.fecha_hora,
@@ -259,60 +261,67 @@ def generar_pdf_trabajadores_zona(
         .join(Persona, Persona.id_persona == Trabajador.id_persona_trabajador)
         .outerjoin(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
         .filter(
-            RegistroAsistencia.id_empresa == id_empresa,
-            RegistroAsistencia.id_zona == id_zona,
-            RegistroAsistencia.fecha_hora >= d,
-            RegistroAsistencia.fecha_hora <= h,
-        )
+    RegistroAsistencia.id_inspector == id_inspector,
+    RegistroAsistencia.id_zona == id_zona,
+    RegistroAsistencia.fecha_hora >= d,
+    RegistroAsistencia.fecha_hora <= h,
+)
+
         .order_by(RegistroAsistencia.fecha_hora.desc())
         .all()
     )
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=18, bottomMargin=18)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=24,
+        rightMargin=24,
+        topMargin=18,
+        bottomMargin=18,
+    )
 
     styles = getSampleStyleSheet()
     story = []
 
-    title = f"Reporte PDF - Trabajadores por Zona (Zona ID: {id_zona})"
-    subtitle = f"Rango: {fecha_desde} a {fecha_hasta}"
-    story.append(Paragraph(title, styles["Title"]))
-    story.append(Paragraph(subtitle, styles["Normal"]))
+    story.append(Paragraph(
+        f"Reporte de Trabajadores – Zona {id_zona}",
+        styles["Title"]
+    ))
+    story.append(Paragraph(
+        f"Inspector ID: {id_inspector} | Desde {fecha_desde} hasta {fecha_hasta}",
+        styles["Normal"]
+    ))
     story.append(Spacer(1, 10))
 
     data = [[
-        "Fecha/Hora", "Zona", "Código", "Cédula", "Nombre", "Correo", "Teléfono",
-        "Cumple", "Detalle", "Observaciones"
+        "Fecha/Hora", "Zona", "Código", "Cédula",
+        "Nombre", "Correo", "Teléfono",
+        "Estado EPP", "Detalle", "Observaciones"
     ]]
 
     for r in rows:
-        fecha_hora = r.fecha_hora.strftime("%Y-%m-%d %H:%M:%S") if r.fecha_hora else ""
-        nombre_full = f"{r.nombre} {r.apellido}"
-        cumple = "✅ Cumple" if r.cumple_epp else "❌ No cumple"
-        detalle = r.detalle_fallo or ("Cumple EPP" if r.cumple_epp else "Incumplimiento")
-        obs = r.observaciones or ""
         data.append([
-            fecha_hora,
+            r.fecha_hora.strftime("%Y-%m-%d %H:%M:%S") if r.fecha_hora else "",
             r.nombreZona or "",
             r.codigo_trabajador or "",
             r.cedula or "",
-            nombre_full,
+            f"{r.nombre} {r.apellido}",
             r.correo or "",
             r.telefono or "",
-            cumple,
-            detalle,
-            obs
+            "CUMPLE" if r.cumple_epp else "NO CUMPLE",
+            r.detalle_fallo or "",
+            r.observaciones or "",
         ])
 
     table = Table(data, repeatRows=1)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ]))
 
     story.append(table)
@@ -321,12 +330,14 @@ def generar_pdf_trabajadores_zona(
     return buffer.getvalue()
 
 
+
+
 # -----------------------------
-# 3.4) EXCEL: Asistencia por zona y rango
+# 3.4) EXCEL: Asistencia por zona y rango (INSPECTOR)
 # -----------------------------
 def generar_excel_asistencia(
     db: Session,
-    id_empresa: int,
+    id_inspector: int,
     id_zona: int,
     fecha_desde: str,
     fecha_hasta: str,
@@ -350,11 +361,12 @@ def generar_excel_asistencia(
         .join(Persona, Persona.id_persona == Trabajador.id_persona_trabajador)
         .outerjoin(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
         .filter(
-            RegistroAsistencia.id_empresa == id_empresa,
-            RegistroAsistencia.id_zona == id_zona,
-            RegistroAsistencia.fecha_hora >= d,
-            RegistroAsistencia.fecha_hora <= h,
-        )
+    RegistroAsistencia.id_inspector == id_inspector,
+    RegistroAsistencia.id_zona == id_zona,
+    RegistroAsistencia.fecha_hora >= d,
+    RegistroAsistencia.fecha_hora <= h,
+)
+
         .order_by(RegistroAsistencia.fecha_hora.desc())
         .all()
     )
@@ -363,7 +375,11 @@ def generar_excel_asistencia(
     ws = wb.active
     ws.title = "Asistencia"
 
-    headers = ["Fecha/Hora", "Zona", "Código", "Cédula", "Trabajador", "Cumple EPP", "Detalle"]
+    headers = [
+        "Fecha/Hora", "Zona", "Código",
+        "Cédula", "Trabajador",
+        "Estado EPP", "Detalle"
+    ]
     ws.append(headers)
 
     header_font = Font(bold=True)
@@ -373,29 +389,21 @@ def generar_excel_asistencia(
         cell.alignment = Alignment(horizontal="center")
 
     for r in rows:
-        trabajador = f"{r.nombre} {r.apellido}"
-        cumple = "CUMPLE" if r.cumple_epp else "NO CUMPLE"
-        detalle = r.detalle_fallo or ("Cumple EPP" if r.cumple_epp else "Incumplimiento")
         ws.append([
             r.fecha_hora.strftime("%Y-%m-%d %H:%M:%S") if r.fecha_hora else "",
             r.nombreZona or "",
             r.codigo_trabajador or "",
             r.cedula or "",
-            trabajador,
-            cumple,
-            detalle
+            f"{r.nombre} {r.apellido}",
+            "CUMPLE" if r.cumple_epp else "NO CUMPLE",
+            r.detalle_fallo or "",
         ])
 
     ws.freeze_panes = "A2"
 
-    # Autosize columns
     for col in range(1, len(headers) + 1):
-        max_len = 0
-        col_letter = get_column_letter(col)
-        for cell in ws[col_letter]:
-            value = str(cell.value) if cell.value is not None else ""
-            max_len = max(max_len, len(value))
-        ws.column_dimensions[col_letter].width = min(max_len + 2, 45)
+        max_len = max(len(str(cell.value)) if cell.value else 0 for cell in ws[get_column_letter(col)])
+        ws.column_dimensions[get_column_letter(col)].width = min(max_len + 2, 45)
 
     stream = io.BytesIO()
     wb.save(stream)
