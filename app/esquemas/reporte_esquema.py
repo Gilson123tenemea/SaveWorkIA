@@ -45,3 +45,29 @@ class PieItem(BaseModel):
 class PieResponse(BaseModel):
     total: int
     items: List[PieItem]
+
+class EmpresaInspectorResponse(BaseModel):
+    """Respuesta con datos de empresa por inspector"""
+    id_Empresa: int
+    nombreEmpresa: str
+
+    class Config:
+        from_attributes = True
+
+class ZonaItem(BaseModel):
+    """Schema para una zona individual"""
+    id: int
+    nombre: str
+
+    class Config:
+        from_attributes = True
+
+
+class ZonasInspectorResponse(BaseModel):
+    """Respuesta con lista de zonas asignadas a un inspector"""
+    id_inspector: int
+    total_zonas: int
+    zonas: List[ZonaItem]
+
+    class Config:
+        from_attributes = True

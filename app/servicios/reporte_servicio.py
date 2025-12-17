@@ -2,7 +2,7 @@
 import io
 import json
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Any
 from sqlalchemy import or_
 from collections import defaultdict
 
@@ -17,6 +17,12 @@ from app.modelos.evidencias_fallo import EvidenciaFallo
 from app.modelos.zona_modelo import Zona
 from app.modelos.trabajador import Trabajador
 from app.modelos.persona import Persona
+from app.modelos.supervisor import Supervisor
+from app.modelos.registrosupervisorinspector import RegistroSupervisorInspector
+from app.modelos.empresa_modelo import Empresa
+from app.modelos.inspector import Inspector
+from app.modelos.inspector_zona import InspectorZona
+import json
 
 # PDF
 from reportlab.lib.pagesizes import A4, landscape
@@ -448,3 +454,135 @@ def generar_excel_asistencia(
     stream = io.BytesIO()
     wb.save(stream)
     return stream.getvalue()
+
+import json
+
+def registrar_reporte(
+    db: Session,
+    tipo_reporte: str,
+    formato: str,
+    filtros: dict | None,
+    generado_por: str,
+    id_empresa: int,
+    id_inspector: int | None = None,
+) -> Reporte:
+    """
+    Registra un reporte en la base de datos.
+    """
+    try:
+        # ✅ IMPORTANTE: Convertir diccionario a JSON string
+        filtros_json = json.dumps(filtros, ensure_ascii=False) if filtros else None
+        
+        reporte = Reporte(
+            tipo_reporte=tipo_reporte,
+            formato=formato,
+            filtros=filtros_json,  # ✅ JSON string, NO diccionario
+            generado_por=generado_por,
+            id_empresa=id_empresa,
+            id_inspector=id_inspector,
+            borrado=True,
+        )
+        
+        db.add(reporte)
+        db.commit()
+        db.refresh(reporte)
+        
+        return reporte
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error al registrar reporte: {str(e)}")
+        return None
+
+
+def obtener_empresa_por_inspector(
+    db: Session, 
+    id_inspector: int
+) -> Dict[str, Any]:
+    """
+    Obtiene empresa por ID de inspector.
+    
+    Flujo: Inspector → RegistroSupervisorInspector → Supervisor → Empresa
+    
+    Args:
+        db: Sesión de base de datos
+        id_inspector: ID del inspector
+        
+    Returns:
+        Dict con id_Empresa y nombreEmpresa
+        
+    Raises:
+        HTTPException 404: Si inspector no existe o no tiene supervisor/empresa
+    """
+    # Query con joins explícitos
+    resultado = db.query(
+        Empresa.id_Empresa,
+        Empresa.nombreEmpresa
+    ).join(
+        Supervisor, 
+        Supervisor.id_empresa_supervisor == Empresa.id_Empresa
+    ).join(
+        RegistroSupervisorInspector, 
+        RegistroSupervisorInspector.id_supervisor_registro == Supervisor.id_supervisor
+    ).join(
+        Inspector, 
+        Inspector.id_inspector == RegistroSupervisorInspector.id_inspector_registro
+    ).filter(
+        Inspector.id_inspector == id_inspector,
+        Inspector.borrado == True,
+        Supervisor.borrado == True,
+        Empresa.borrado == True,
+        RegistroSupervisorInspector.borrado == True
+    ).first()
+    
+    if not resultado:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspector no encontrado o sin supervisor/empresa asignado"
+        )
+    
+    return {
+        "id_Empresa": resultado[0],
+        "nombreEmpresa": resultado[1]
+    }
+
+
+def obtener_zonas_por_inspector(
+    db: Session, 
+    id_inspector: int
+) -> List[dict]:
+    """
+    Obtiene las zonas asignadas a un inspector.
+    
+    Flujo: Inspector → InspectorZona → Zona
+    
+    Args:
+        db: Sesión de base de datos
+        id_inspector: ID del inspector
+        
+    Returns:
+        Lista de zonas con id y nombre
+    """
+    # Query optimizada con join directo
+    zonas = db.query(
+        Zona.id_Zona,
+        Zona.nombreZona
+    ).join(
+        InspectorZona,
+        InspectorZona.id_zona_inspectorzona == Zona.id_Zona
+    ).filter(
+        InspectorZona.id_inspector_inspectorzona == id_inspector,
+        InspectorZona.borrado == True,
+        Zona.borrado == True
+    ).all()
+    
+    if not zonas:
+        return []
+    
+    return [
+        {
+            "id": z[0],
+            "nombre": z[1]
+        }
+        for z in zonas
+    ]

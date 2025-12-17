@@ -8,6 +8,8 @@ from app.config import get_db
 from app.modelos.registros_asistencia import RegistroAsistencia 
 from sqlalchemy import func
 
+from app.esquemas.reporte_esquema import EmpresaInspectorResponse
+from app.esquemas.reporte_esquema import ZonasInspectorResponse, ZonaItem
 
 from app.esquemas.reporte_esquema import BarsResponse, BarItem, PieResponse, PieItem
 from app.servicios.reporte_servicio import (
@@ -17,6 +19,8 @@ from app.servicios.reporte_servicio import (
     pastel_epp_mas_cumplido,
     generar_pdf_trabajadores_zona,
     generar_excel_asistencia,
+    obtener_empresa_por_inspector,
+    obtener_zonas_por_inspector,
 )
 
 router = APIRouter(prefix="/reportes", tags=["Reportes"])
@@ -141,19 +145,7 @@ def estad_epp_pastel(
     total = sum(i.value for i in resp_items)
     return PieResponse(total=total, items=resp_items)
 
-def obtener_empresa_por_inspector(db: Session, id_inspector: int) -> int:
-    inspector = db.query(Inspector).filter(
-        Inspector.id_inspector == id_inspector,
-        Inspector.borrado == True
-    ).first()
 
-    if not inspector:
-        raise HTTPException(
-            status_code=404,
-            detail="Inspector no encontrado"
-        )
-
-    return inspector.id_empresa_inspector
 def obtener_id_empresa_desde_registros(
     db: Session,
     id_inspector: int,
@@ -241,20 +233,26 @@ def reporte_excel_asistencia(
         fecha_hasta=fecha_hasta,
     )
 
-    id_empresa = obtener_empresa_por_inspector(db, id_inspector)
+    # ✅ Obtener empresa de forma segura
+    try:
+        empresa_dict = obtener_empresa_por_inspector(db, id_inspector)
+        id_empresa = empresa_dict["id_Empresa"]
+    except Exception:
+        id_empresa = obtener_id_empresa_desde_registros(db, id_inspector, id_zona)
 
+    # ✅ Registrar reporte con diccionario
     registrar_reporte(
         db=db,
         tipo_reporte="excel_asistencia",
         formato="excel",
-        filtros={
+        filtros={  # ✅ Diccionario - se convierte a JSON automáticamente
             "id_inspector": id_inspector,
             "id_zona": id_zona,
             "fecha_desde": fecha_desde,
             "fecha_hasta": fecha_hasta,
         },
         generado_por="inspector",
-        id_empresa=id_empresa,          # ✅ CLAVE
+        id_empresa=id_empresa,
         id_inspector=id_inspector,
     )
 
@@ -264,3 +262,67 @@ def reporte_excel_asistencia(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+@router.get(
+    "/inspector/{id_inspector}/empresa",
+    response_model=EmpresaInspectorResponse,
+    summary="Obtener empresa por inspector"
+)
+def get_empresa_por_inspector(
+    id_inspector: int,
+    db: Session = Depends(get_db)
+):
+    """Obtiene el nombre e ID de la empresa asignada a un inspector"""
+    return obtener_empresa_por_inspector(db, id_inspector)
+@router.get(
+    "/inspector/{id_inspector}/zonas",
+    response_model=ZonasInspectorResponse,
+    summary="Obtener zonas asignadas a un inspector"
+)
+def listar_zonas_inspector(
+    id_inspector: int,
+    db: Session = Depends(get_db)
+):
+    """
+    **Obtiene todas las zonas asignadas a un inspector**
+    
+    Flujo: Inspector → InspectorZona → Zona
+    
+    **Parámetros:**
+    - `id_inspector` (path): ID del inspector
+    
+    **Respuesta (200):**
+    ```json
+    {
+        "id_inspector": 1,
+        "total_zonas": 2,
+        "zonas": [
+            {
+                "id": 5,
+                "nombre": "Zona A - Centro"
+            },
+            {
+                "id": 10,
+                "nombre": "Zona B - Norte"
+            }
+        ]
+    }
+    ```
+    
+    **Errores:**
+    - 200 (vacío): Inspector sin zonas asignadas
+    ```json
+    {
+        "id_inspector": 1,
+        "total_zonas": 0,
+        "zonas": []
+    }
+    ```
+    """
+    zonas = obtener_zonas_por_inspector(db, id_inspector)
+    
+    return {
+        "id_inspector": id_inspector,
+        "total_zonas": len(zonas),
+        "zonas": zonas
+    }

@@ -1,6 +1,7 @@
 # app/modelos/inspector_zona.py
 from sqlalchemy import Column, Integer, Boolean, ForeignKey, DateTime, func
 from app.config import Base
+from sqlalchemy.orm import relationship
 
 class InspectorZona(Base):
     __tablename__ = "inspector_zona"
@@ -11,3 +12,6 @@ class InspectorZona(Base):
 
     id_inspector_inspectorzona = Column(Integer, ForeignKey("inspector.id_inspector"), nullable=False)
     id_zona_inspectorzona = Column(Integer, ForeignKey("zonas.id_Zona"), nullable=False)
+
+    inspector = relationship("Inspector")
+    zona = relationship("Zona")
