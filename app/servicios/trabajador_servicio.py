@@ -50,6 +50,14 @@ def cedula_existe_activa(db: Session, cedula: str):
         return False  
     return True  
 
+def correo_existe_activo(db: Session, correo: str) -> bool:
+
+    persona = db.query(Persona).filter(
+        Persona.correo == correo,
+        Persona.borrado == True  
+    ).first()
+    return persona is not None
+
 
 def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
 

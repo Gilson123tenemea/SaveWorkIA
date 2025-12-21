@@ -452,6 +452,16 @@ def obtener_zonas_por_inspector(db: Session, id_inspector: int):
 
     return resultado
 
+def correo_existe_activo(db: Session, correo: str) -> bool:
+    """
+    Verifica si un correo existe en un usuario ACTIVO
+    Retorna True si existe, False si no existe
+    """
+    persona = db.query(Persona).filter(
+        Persona.correo == correo,
+        Persona.borrado == True  
+    ).first()
+    return persona is not None
 
 def obtener_perfil_inspector(db: Session, id_inspector: int):
 

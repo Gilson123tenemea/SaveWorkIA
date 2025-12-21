@@ -29,6 +29,17 @@ def validar_codigo(codigo: str, db: Session = Depends(get_db)):
     existe = codigo_existe_activo(db, codigo)
     return {"existe": existe}
 
+@router.get("/validar-correo/{correo}")
+def validar_correo_disponible(correo: str, db: Session = Depends(get_db)):
+
+    from app.servicios.inspector_servicio import correo_existe_activo
+    existe = correo_existe_activo(db, correo)
+    return {
+        "disponible": not existe, 
+        "correo": correo,
+        "mensaje": "Correo disponible" if not existe else "Correo ya registrado"
+    }
+
 # --------------------------------------------------
 # CREAR PERSONA + TRABAJADOR
 # --------------------------------------------------

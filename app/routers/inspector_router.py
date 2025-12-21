@@ -26,6 +26,22 @@ def validar_cedula_supervisor(cedula: str, db: Session = Depends(get_db)):
     existe = cedula_existe_activa(db, cedula)
     return {"existe": existe}
 
+
+@router.get("/validar-correo/{correo}")
+def validar_correo_disponible(correo: str, db: Session = Depends(get_db)):
+    """
+    Valida si el correo está disponible (no existe en usuarios activos)
+    Responde: {"disponible": true/false, "correo": "..."}
+    """
+    from app.servicios.inspector_servicio import correo_existe_activo
+    existe = correo_existe_activo(db, correo)
+    return {
+        "disponible": not existe,  # ← Invertido: disponible = NO existe
+        "correo": correo,
+        "mensaje": "Correo disponible" if not existe else "Correo ya registrado"
+    }
+
+
 # --- Registrar ---
 @router.post("/registrar")
 def registrar_inspector(request: InspectorCreate, db: Session = Depends(get_db)):
