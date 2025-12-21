@@ -15,14 +15,15 @@ router = APIRouter(prefix="/dashboard-supervisor", tags=["Dashboard Supervisor"]
 @router.get("/{id_empresa}")
 def obtener_dashboard_supervisor(id_empresa: int, db: Session = Depends(get_db)):
 
-    # Total trabajadores activos en la empresa
     trabajadores_activos = db.query(Trabajador).filter(
         Trabajador.id_empresa == id_empresa,
-        Trabajador.borrado == True
+        Trabajador.borrado == True,
+        Trabajador.estado == True
     ).count()
 
     trabajadores_registrados = db.query(Trabajador).filter(
-        Trabajador.id_empresa == id_empresa
+        Trabajador.id_empresa == id_empresa,
+        Trabajador.borrado == True
     ).count()
 
     # Zonas de la empresa
