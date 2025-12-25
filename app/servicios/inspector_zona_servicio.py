@@ -1,19 +1,43 @@
 from sqlalchemy.orm import Session
-from datetime import date
 from app.modelos.inspector_zona import InspectorZona
 from app.modelos.supervisor import Supervisor
 from app.modelos.zona_modelo import Zona
 from app.modelos.inspector import Inspector
 from app.modelos.persona import Persona
-
+from fastapi import HTTPException
 from app.modelos.inspector_zona import InspectorZona
 from app.esquemas.inspector_zona_esquema import InspectorZonaCreate, InspectorZonaBase
 
 
 def crear_inspector_zona(db: Session, data: InspectorZonaBase):
+
+
+    zona_ocupada = db.query(InspectorZona).filter(
+        InspectorZona.id_zona_inspectorzona == data.id_zona_inspectorzona,
+        InspectorZona.borrado == True
+    ).first()
+
+    if zona_ocupada:
+        raise HTTPException(
+            status_code=400,
+            detail="La zona ya tiene un inspector asignado"
+        )
+
+    # ❌ VALIDAR: inspector ya asignado a esa zona
+    asignacion_existente = db.query(InspectorZona).filter(
+        InspectorZona.id_inspector_inspectorzona == data.id_inspector_inspectorzona,
+        InspectorZona.id_zona_inspectorzona == data.id_zona_inspectorzona,
+        InspectorZona.borrado == True
+    ).first()
+
+    if asignacion_existente:
+        raise HTTPException(
+            status_code=400,
+            detail="El inspector ya está asignado a esta zona"
+        )
+
     nueva_asignacion = InspectorZona(
-        fecha_asignacion=date.today(),   # Fecha automática
-        borrado=data.borrado,
+        borrado=True,
         id_inspector_inspectorzona=data.id_inspector_inspectorzona,
         id_zona_inspectorzona=data.id_zona_inspectorzona,
     )
@@ -86,7 +110,7 @@ def obtener_asignaciones_completas(db: Session, empresa_id: int):
     for asignacion, inspector, persona, zona in registros:
         resultado.append({
             "id_inspector_zona": asignacion.id_inspector_zona,
-            "fecha_asignacion": asignacion.fecha_asignacion,
+            "fecha_asignacion": asignacion.fecha_asignacion.strftime("%Y-%m-%d %H:%M"),
 
             "inspector": {
                 "id_inspector": inspector.id_inspector,
@@ -102,3 +126,29 @@ def obtener_asignaciones_completas(db: Session, empresa_id: int):
         })
 
     return resultado
+
+def obtener_zonas_disponibles_por_inspector(
+    db: Session,
+    inspector_id: int,
+    empresa_id: int
+):
+    # zonas de la empresa
+    zonas_empresa = db.query(Zona).filter(
+        Zona.id_empresa_zona == empresa_id,
+        Zona.borrado == True
+    ).subquery()
+
+    # zonas ya asignadas (a cualquier inspector)
+    zonas_ocupadas = db.query(
+        InspectorZona.id_zona_inspectorzona
+    ).filter(
+        InspectorZona.borrado == True
+    ).subquery()
+
+    zonas_disponibles = db.query(Zona).filter(
+        Zona.id_Zona.notin_(zonas_ocupadas),
+        Zona.id_empresa_zona == empresa_id,
+        Zona.borrado == True
+    ).all()
+
+    return zonas_disponibles

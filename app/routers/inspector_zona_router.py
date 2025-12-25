@@ -24,6 +24,15 @@ def get_db():
 def crear(asignacion: InspectorZonaCreate, db: Session = Depends(get_db)):
     return inspector_zona_servicio.crear_inspector_zona(db, asignacion)
 
+@router.get("/zonas-disponibles/{empresa_id}/{inspector_id}")
+def zonas_disponibles(
+    empresa_id: int,
+    inspector_id: int,
+    db: Session = Depends(get_db)
+):
+    return inspector_zona_servicio.obtener_zonas_disponibles_por_inspector(
+        db, inspector_id, empresa_id
+    )   
 
 @router.get("/", response_model=list[InspectorZonaResponse])
 def listar(db: Session = Depends(get_db)):

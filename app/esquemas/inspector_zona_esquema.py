@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import datetime
 
 class InspectorZonaBase(BaseModel):
     id_inspector_inspectorzona: int
@@ -13,14 +13,14 @@ class InspectorZonaCreate(InspectorZonaBase):
 class InspectorZonaResponse(InspectorZonaBase):
     id_inspector_zona: int
     # La fecha sí se devuelve
-    fecha_asignacion: date   
+    fecha_asignacion: datetime      
 
     class Config:
         orm_mode = True
 
 class InspectorZonaFullResponse(BaseModel):
     id_inspector_zona: int
-    fecha_asignacion: date
+    fecha_asignacion: datetime
     borrado: bool
 
     inspector_cedula: str
