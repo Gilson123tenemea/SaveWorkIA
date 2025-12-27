@@ -414,7 +414,13 @@ def obtener_trabajadores_por_supervisor(db: Session, id_supervisor: int):
 # LISTAR TRABAJADORES POR SUPERVISOR **NO ASIGNADOS A ZONA**
 # ---------------------------------------------------------
 def obtener_trabajadores_no_asignados(db: Session, id_supervisor: int):
-
+    """
+    Obtiene los trabajadores de un supervisor que:
+    - NO están asignados a ninguna zona
+    - Están ACTIVOS (estado=True)
+    - NO están borrados (borrado=False)
+    """
+    
     # Subconsulta → trabajadores YA asignados a zona
     subquery_asignados = (
         db.query(TrabajadorZona.id_trabajador_trabajadorzona)
@@ -422,14 +428,15 @@ def obtener_trabajadores_no_asignados(db: Session, id_supervisor: int):
         .subquery()
     )
 
-    # Consulta principal → trabajadores del supervisor que NO estén en la subconsulta
+    # Consulta principal → trabajadores que cumplen los filtros
     trabajadores = (
         db.query(Trabajador)
         .options(joinedload(Trabajador.persona))
         .filter(
             Trabajador.id_supervisor_trabajador == id_supervisor,
-            Trabajador.borrado == True,
-            ~Trabajador.id_trabajador.in_(subquery_asignados)   # EXCLUIR asignados
+            Trabajador.estado == True,              # ACTIVOS
+            Trabajador.borrado == True,             # NO BORRADOS
+            ~Trabajador.id_trabajador.in_(subquery_asignados)  # NO ASIGNADOS
         )
         .all()
     )
