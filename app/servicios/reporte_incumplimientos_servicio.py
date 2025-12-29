@@ -51,7 +51,9 @@ def obtener_epp_humanos_por_zona(db: Session, id_zona: int) -> list[str]:
 
 def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
 
-    hoy = datetime.now().date()
+    hoy = date.today()
+    inicio_dia = datetime.combine(hoy, datetime.min.time())
+    fin_dia = datetime.combine(hoy, datetime.max.time())
 
     registros = (
         db.query(RegistroAsistencia)
@@ -64,7 +66,7 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
         .filter(
             RegistroAsistencia.id_supervisor == id_supervisor,
             RegistroAsistencia.cumple_epp == False,
-            func.date(RegistroAsistencia.fecha_hora) == hoy
+            RegistroAsistencia.fecha_hora.between(inicio_dia, fin_dia)
         )
         .all()
     )
@@ -73,9 +75,7 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
         return []
 
     resultados = []
-
     for reg in registros:
-
         evidencia = (
             db.query(EvidenciaFallo)
             .filter(EvidenciaFallo.id_registro == reg.id_registro)
@@ -86,46 +86,25 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
         camara = reg.camara
         zona = camara.zona
 
-        # =========================
-        # INSPECTOR
-        # =========================
         inspector_info = None
-        if reg.inspector:
-            persona_inspector = db.query(Persona).filter(
-                Persona.id_persona == reg.inspector.id_persona_inspector
-            ).first()
-            if persona_inspector:
-                inspector_info = {
-                    "nombre": persona_inspector.nombre,
-                    "apellido": persona_inspector.apellido
-                }
+        if reg.inspector and reg.inspector.persona:
+            p = reg.inspector.persona
+            inspector_info = {"nombre": p.nombre, "apellido": p.apellido}
 
-        # =========================
-        # FOTO BASE64
-        # =========================
-        foto_base64 = None
-        if evidencia and evidencia.foto_data:
-            foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
+        foto_base64 = (
+            base64.b64encode(evidencia.foto_data).decode("utf-8")
+            if evidencia and evidencia.foto_data
+            else None
+        )
 
-        # =========================
-        # DETECCIONES
-        # =========================
-        clases_detectadas = []
-        if evidencia and evidencia.detalle_fallo:
-            clases_detectadas = [
-                c.strip().lower()
-                for c in evidencia.detalle_fallo.split(",")
-                if c.strip()
-            ]
+        clases_detectadas = (
+            [c.strip().lower() for c in evidencia.detalle_fallo.split(",") if c.strip()]
+            if evidencia and evidencia.detalle_fallo
+            else []
+        )
 
-        # =========================
-        # ✅ EPP DE LA ZONA (SIEMPRE)
-        # =========================
         epps_zona = obtener_epp_humanos_por_zona(db, zona.id_Zona)
 
-        # =========================
-        # RESPUESTA FINAL
-        # =========================
         resultados.append({
             "trabajador": {
                 "nombre": trabajador_persona.nombre,
@@ -139,7 +118,7 @@ def obtener_incumplimientos_por_supervisor(db: Session, id_supervisor: int):
             },
             "fecha_registro": reg.fecha_hora,
             "detecciones": clases_detectadas,
-            "epps_zona": epps_zona,   # ✅ AHORA SIEMPRE SALE
+            "epps_zona": epps_zona,
             "evidencia": {
                 "detalle": evidencia.detalle_fallo if evidencia else None,
                 "foto_base64": foto_base64,
