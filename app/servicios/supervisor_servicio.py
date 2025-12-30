@@ -6,7 +6,7 @@ from app.modelos.empresa_modelo import Empresa
 from app.modelos.supervisor import Supervisor
 from app.modelos.persona import Persona
 from app.modelos.supervisor import Supervisor
-from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor, SupervisorUpdate
+from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor, SupervisorUpdate, SupervisorPerfilUpdate
 from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contrasena
 from app.modelos.registrosupervisorinspector import RegistroSupervisorInspector
 
@@ -413,7 +413,11 @@ def obtener_perfil_supervisor(db: Session, id_supervisor: int):
     }
 
 
-def actualizar_perfil_supervisor(db: Session, id_supervisor: int, datos):
+def actualizar_perfil_supervisor(
+    db: Session,
+    id_supervisor: int,
+    datos: SupervisorPerfilUpdate
+):
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_supervisor == id_supervisor,
         Supervisor.borrado == True
@@ -430,17 +434,22 @@ def actualizar_perfil_supervisor(db: Session, id_supervisor: int, datos):
     if not persona:
         raise HTTPException(status_code=404, detail="Persona no encontrada")
 
-    # Validar correo repetido
+    # 🔒 validar correo SOLO contra otros activos
     correo_existente = db.query(Persona).filter(
         Persona.correo == datos.correo,
-        Persona.id_persona != persona.id_persona
+        Persona.id_persona != persona.id_persona,
+        Persona.borrado == True
     ).first()
 
     if correo_existente:
-        raise HTTPException(400, "El correo ya está en uso")
+        raise HTTPException(
+            status_code=400,
+            detail="El correo ya está registrado por otra persona"
+        )
 
-    # Actualizar campos editables
+    # ✅ actualizar perfil
     persona.nombre = datos.nombre
+    persona.apellido = datos.apellido
     persona.correo = datos.correo
     persona.telefono = datos.telefono
 
@@ -448,10 +457,14 @@ def actualizar_perfil_supervisor(db: Session, id_supervisor: int, datos):
     db.refresh(persona)
 
     return {
-        "mensaje": "Perfil actualizado correctamente",
-        "nombre": persona.nombre,
-        "correo": persona.correo,
-        "telefono": persona.telefono
+        "mensaje": "Perfil del supervisor actualizado correctamente",
+        "persona": {
+            "id_persona": persona.id_persona,
+            "nombre": persona.nombre,
+            "apellido": persona.apellido,
+            "correo": persona.correo,
+            "telefono": persona.telefono
+        }
     }
 
 def listar_empresas_sin_supervisor(db: Session):

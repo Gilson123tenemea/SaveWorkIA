@@ -65,3 +65,9 @@ class EmpresaResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class SupervisorPerfilUpdate(BaseModel):
+    nombre: str
+    apellido: str
+    correo: EmailStr
+    telefono: Optional[str] = None

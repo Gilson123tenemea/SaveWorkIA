@@ -27,6 +27,7 @@ from app.modelos import trabajador_zona
 from app.modelos import registros_asistencia
 from app.modelos import evidencias_fallo
 from app.modelos import zona_epp
+from app.modelos import token_reset_modelo
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
@@ -65,6 +66,7 @@ from app.routers import (
     trabajador_funciones_router,
     reporte_router,
     zona_epp_router,
+    auth_ruta,
 
 
 
@@ -126,6 +128,7 @@ app.include_router(dashboard_inspector.router)
 app.include_router(trabajador_funciones_router.router)
 app.include_router(reporte_router.router)
 app.include_router(zona_epp_router.router)
+app.include_router(auth_ruta.router)
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
 # ----------------------------------------------------------------------
