@@ -25,7 +25,6 @@ from app.Validaciones.validacion_usuario import (
     validar_fecha_nacimiento,
     validar_contrasena,
     validar_cargo,
-    validar_area_trabajo,
     validar_implementos,
     validar_estado_trabajador,
     validar_codigo_trabajador,
@@ -33,9 +32,11 @@ from app.Validaciones.validacion_usuario import (
 
 )
 
-def codigo_existe_activo(db: Session, codigo: str):
+def codigo_existe_activo(db: Session, codigo: str, id_empresa: int):
     trabajador = db.query(Trabajador).filter(
-        Trabajador.codigo_trabajador == codigo
+        Trabajador.codigo_trabajador == codigo,
+        Trabajador.id_empresa == id_empresa,
+        Trabajador.borrado == True
     ).first()
 
     return trabajador is not None
@@ -100,11 +101,10 @@ def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
         validar_contrasena(data.persona.contrasena)
 
         validar_cargo(data.trabajador.cargo)
-        validar_area_trabajo(data.trabajador.area_trabajo)
         validar_implementos(data.trabajador.implementos_requeridos)
         validar_estado_trabajador(data.trabajador.estado)
         validar_codigo_trabajador(data.trabajador.codigo_trabajador)
-        validar_codigo_unico(db, data.trabajador.codigo_trabajador)
+        validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
 
         # --- Reactivar persona ---
         persona.nombre = data.persona.nombre
@@ -126,7 +126,6 @@ def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
         # Si trabajador existía → reactivarlo y actualizarlo
         if trabajador:
             trabajador.cargo = data.trabajador.cargo
-            trabajador.area_trabajo = data.trabajador.area_trabajo
             trabajador.implementos_requeridos = data.trabajador.implementos_requeridos
             trabajador.estado = data.trabajador.estado
             trabajador.codigo_trabajador = data.trabajador.codigo_trabajador
@@ -138,7 +137,6 @@ def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
             # Si NO existía → crear nuevo trabajador con misma persona
             trabajador = Trabajador(
                 cargo=data.trabajador.cargo,
-                area_trabajo=data.trabajador.area_trabajo,
                 implementos_requeridos=data.trabajador.implementos_requeridos,
                 estado=data.trabajador.estado,
                 codigo_trabajador=data.trabajador.codigo_trabajador,
@@ -172,11 +170,10 @@ def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
 
     # Validaciones trabajador NUEVO
     validar_cargo(data.trabajador.cargo)
-    validar_area_trabajo(data.trabajador.area_trabajo)
     validar_implementos(data.trabajador.implementos_requeridos)
     validar_estado_trabajador(data.trabajador.estado)
     validar_codigo_trabajador(data.trabajador.codigo_trabajador)
-    validar_codigo_unico(db, data.trabajador.codigo_trabajador)
+    validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
 
     # Crear persona nueva
     persona = Persona(
@@ -199,7 +196,6 @@ def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
     # Crear trabajador nuevo
     trabajador = Trabajador(
         cargo=data.trabajador.cargo,
-        area_trabajo=data.trabajador.area_trabajo,
         implementos_requeridos=data.trabajador.implementos_requeridos,
         estado=data.trabajador.estado,
         codigo_trabajador=data.trabajador.codigo_trabajador,
@@ -220,16 +216,17 @@ def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
 def obtener_trabajadores_completos(db: Session):
     return db.query(Trabajador).join(Persona).all()
 
-def validar_codigo_unico(db: Session, codigo: str):
+def validar_codigo_unico(db: Session, codigo: str, id_empresa: int):
     existe = db.query(Trabajador).filter(
         Trabajador.codigo_trabajador == codigo,
+        Trabajador.id_empresa == id_empresa,
         Trabajador.borrado == True
     ).first()
 
     if existe:
         raise HTTPException(
             status_code=400,
-            detail="Ya existe un trabajador activo con este código"
+            detail="Ya existe un trabajador activo con este código en esta empresa"
         )
 
 # -----------------------------------------------
@@ -293,14 +290,17 @@ def editar_trabajador_completo(db: Session, id_trabajador: int, data: Trabajador
     # 3️⃣ VALIDACIONES TRABAJADOR
     # ------------------------------
     validar_cargo(data.trabajador.cargo)
-    validar_area_trabajo(data.trabajador.area_trabajo)
     validar_implementos(data.trabajador.implementos_requeridos)
     validar_estado_trabajador(data.trabajador.estado)
 
     # Validar código EMP-XXX solo si cambió
     if data.trabajador.codigo_trabajador != trabajador.codigo_trabajador:
         validar_codigo_trabajador(data.trabajador.codigo_trabajador)
-        validar_codigo_unico(db, data.trabajador.codigo_trabajador)
+        validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
+
+    # Si cambió de empresa, validar que el código sea único en la nueva empresa
+    if data.trabajador.id_empresa != trabajador.id_empresa:
+        validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
 
     # ------------------------------
     # 4️⃣ Actualizar PERSONA
@@ -317,7 +317,6 @@ def editar_trabajador_completo(db: Session, id_trabajador: int, data: Trabajador
     # 5️⃣ Actualizar TRABAJADOR
     # ------------------------------
     trabajador.cargo = data.trabajador.cargo
-    trabajador.area_trabajo = data.trabajador.area_trabajo
     trabajador.implementos_requeridos = data.trabajador.implementos_requeridos
     trabajador.estado = data.trabajador.estado
     trabajador.codigo_trabajador = data.trabajador.codigo_trabajador
@@ -500,7 +499,6 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
         if inspector:
             inspector_data = {
                 "id_inspector": inspector.id_inspector,
-                "zona_asignada": inspector.zona_asignada,
                 "frecuenciaVisita": inspector.frecuenciaVisita,
                 "id_persona": inspector.id_persona_inspector
             }
@@ -509,7 +507,6 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
     return {
         "id_trabajador": trabajador.id_trabajador,
         "cargo": trabajador.cargo,
-        "area_trabajo": trabajador.area_trabajo,
         "implementos_requeridos": trabajador.implementos_requeridos,
         "estado": trabajador.estado,
         "codigo_trabajador": trabajador.codigo_trabajador,

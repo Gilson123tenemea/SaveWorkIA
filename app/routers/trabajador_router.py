@@ -22,11 +22,11 @@ def get_db():
     finally:
         db.close()
 
-@router.get("/validar-codigo/{codigo}")
-def validar_codigo(codigo: str, db: Session = Depends(get_db)):
+@router.get("/validar-codigo/{codigo}/empresa/{id_empresa}")
+def validar_codigo(codigo: str, id_empresa: int, db: Session = Depends(get_db)):
     from app.servicios.trabajador_servicio import codigo_existe_activo
 
-    existe = codigo_existe_activo(db, codigo)
+    existe = codigo_existe_activo(db, codigo, id_empresa)
     return {"existe": existe}
 
 @router.get("/validar-correo/{correo}")

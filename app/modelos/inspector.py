@@ -7,7 +7,6 @@ class Inspector(Base):
     __tablename__ = "inspector"
 
     id_inspector = Column(Integer, primary_key=True, index=True)
-    zona_asignada = Column(String(550), nullable=False)
     frecuenciaVisita = Column(String(500), nullable=True)
     borrado = Column(Boolean, default=True)
 

@@ -9,11 +9,10 @@ class Trabajador(Base):
 
     id_trabajador = Column(Integer, primary_key=True, index=True)
     cargo = Column(String(100), nullable=False)
-    area_trabajo = Column(String(100), nullable=False)
     implementos_requeridos = Column(String(550), nullable=False)
     estado = Column(Boolean, default=True)
     fecharegistro = Column(Date, nullable=False, server_default=text('CURDATE()'))
-    codigo_trabajador = Column(String(50), unique=True, nullable=False)
+    codigo_trabajador = Column(String(50), nullable=False)
     borrado = Column(Boolean, default=False)
     
     #relaciones

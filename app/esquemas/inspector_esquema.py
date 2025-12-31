@@ -18,7 +18,6 @@ class PersonaBase(BaseModel):
 # --- Crear Inspector (recibe persona y datos del inspector) ---
 class InspectorCreate(BaseModel):
     persona: PersonaBase
-    zona_asignada: str
     frecuenciaVisita: Optional[str] = None
     id_supervisor_registro: int  # quién lo registró
 
@@ -29,7 +28,6 @@ class InspectorResponse(BaseModel):
     nombre: str
     apellido: str
     correo: str
-    zona_asignada: str
     frecuenciaVisita: Optional[str]
     fecha_asignacion: date
     borrado: bool

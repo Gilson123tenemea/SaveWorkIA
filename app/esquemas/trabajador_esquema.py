@@ -25,7 +25,6 @@ class PersonaBase(BaseModel):
 # ---------------------------
 class TrabajadorBase(BaseModel):
     cargo: str
-    area_trabajo: str
     implementos_requeridos: str
     estado: Optional[bool] = True
     # fecharegistro se genera automáticamente → no se envía

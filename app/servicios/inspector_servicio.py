@@ -78,12 +78,10 @@ def crear_inspector(db: Session, datos: InspectorCreate):
         ).first()
 
         if inspector:
-            inspector.zona_asignada = datos.zona_asignada
             inspector.frecuenciaVisita = datos.frecuenciaVisita
             inspector.borrado = True
         else:
             inspector = Inspector(
-                zona_asignada=datos.zona_asignada,
                 frecuenciaVisita=datos.frecuenciaVisita,
                 id_persona_inspector=persona_existente.id_persona,
                 borrado=True
@@ -132,8 +130,6 @@ def crear_inspector(db: Session, datos: InspectorCreate):
     validar_genero(datos.persona.genero)
     validar_fecha_nacimiento(datos.persona.fecha_nacimiento)
     validar_contrasena(datos.persona.contrasena)
-
-    validar_zona_asignada(datos.zona_asignada)
     validar_frecuencia_visita(datos.frecuenciaVisita)
 
     contrasena_encriptada = encriptar_contrasena(datos.persona.contrasena)
@@ -158,7 +154,6 @@ def crear_inspector(db: Session, datos: InspectorCreate):
 
     # Crear Inspector
     nuevo_inspector = Inspector(
-        zona_asignada=datos.zona_asignada,
         frecuenciaVisita=datos.frecuenciaVisita,
         id_persona_inspector=nueva_persona.id_persona,
         borrado=True
@@ -185,7 +180,6 @@ def crear_inspector(db: Session, datos: InspectorCreate):
         "nombre": nueva_persona.nombre,
         "apellido": nueva_persona.apellido,
         "correo": nueva_persona.correo,
-        "zona_asignada": nuevo_inspector.zona_asignada,
         "frecuenciaVisita": nuevo_inspector.frecuenciaVisita,
         "fecha_asignacion": nuevo_registro.fecha_asignacion,
         "borrado": nuevo_inspector.borrado
@@ -214,7 +208,6 @@ def listar_inspectores(db: Session):
             "direccion": persona.direccion,
             "genero": persona.genero,
             "fecha_nacimiento": persona.fecha_nacimiento.isoformat(),
-            "zona_asignada": inspector.zona_asignada,
             "frecuenciaVisita": inspector.frecuenciaVisita,
             "borrado": inspector.borrado,
         })
@@ -275,7 +268,6 @@ def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
     validar_fecha_nacimiento(datos.persona.fecha_nacimiento)
 
     # --- VALIDAR CAMPOS DEL INSPECTOR ---
-    validar_zona_asignada(datos.zona_asignada)
     validar_frecuencia_visita(datos.frecuenciaVisita)
 
     # Actualización (sin modificar contraseña)
@@ -288,7 +280,6 @@ def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
     persona.genero = datos.persona.genero
     persona.fecha_nacimiento = datos.persona.fecha_nacimiento
 
-    inspector.zona_asignada = datos.zona_asignada
     inspector.frecuenciaVisita = datos.frecuenciaVisita
 
     registro = db.query(RegistroSupervisorInspector).filter(
@@ -397,7 +388,6 @@ def listar_inspectores_por_supervisor(db: Session, id_supervisor: int):
             "direccion": persona.direccion,
             "genero": persona.genero,
             "fecha_nacimiento": persona.fecha_nacimiento.isoformat(),
-            "zona_asignada": inspector.zona_asignada,
             "frecuenciaVisita": inspector.frecuenciaVisita,
             "borrado": inspector.borrado,
             "fecha_asignacion": registro.fecha_asignacion
@@ -521,7 +511,6 @@ def obtener_perfil_inspector(db: Session, id_inspector: int):
         "genero": persona.genero,
         "fecha_nacimiento": persona.fecha_nacimiento,
         "frecuenciaVisita": inspector.frecuenciaVisita,
-        "zonas_asignadas": zonas_asignadas,  # ✅ LISTA REAL
         "fotoBase64": foto_base64,
     }
 
