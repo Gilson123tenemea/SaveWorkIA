@@ -50,6 +50,7 @@ class SupervisorUpdate(BaseModel):
     persona: PersonaBase
     especialidad_seguridad: str
     experiencia: int
+    id_empresa_supervisor: int  # 🔥 CLAVE
 from pydantic import BaseModel
 from typing import Optional
 

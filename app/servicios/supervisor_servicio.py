@@ -277,23 +277,37 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
 
 def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
 
+    # ============================
+    # 🔎 BUSCAR SUPERVISOR ACTIVO
+    # ============================
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_supervisor == id_supervisor,
         Supervisor.borrado == True
     ).first()
 
     if not supervisor:
-        raise HTTPException(status_code=404, detail="Supervisor no encontrado o inactivo")
+        raise HTTPException(
+            status_code=404,
+            detail="Supervisor no encontrado o inactivo"
+        )
 
+    # ============================
+    # 🔎 BUSCAR PERSONA ACTIVA
+    # ============================
     persona = db.query(Persona).filter(
         Persona.id_persona == supervisor.id_persona_supervisor,
         Persona.borrado == True
     ).first()
 
     if not persona:
-        raise HTTPException(status_code=404, detail="Persona asociada no encontrada o inactiva")
+        raise HTTPException(
+            status_code=404,
+            detail="Persona asociada no encontrada o inactiva"
+        )
 
-    # --- VALIDACIONES PERSONA ---
+    # ============================
+    # 🧑 VALIDACIONES PERSONA
+    # ============================
     validar_cedula_ecuatoriana(datos.persona.cedula)
 
     # Evitar que su propia cédula marque duplicado
@@ -303,7 +317,6 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     validar_nombre(datos.persona.nombre)
     validar_apellido(datos.persona.apellido)
     validar_telefono(datos.persona.telefono)
-
     validar_correo_formato(datos.persona.correo)
 
     if datos.persona.correo != persona.correo:
@@ -313,16 +326,37 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     validar_genero(datos.persona.genero)
     validar_fecha_nacimiento(datos.persona.fecha_nacimiento)
 
-    # --- VALIDACIONES SUPERVISOR ---
+    # ============================
+    # 🛡️ VALIDACIONES SUPERVISOR
+    # ============================
     validar_especialidad(datos.especialidad_seguridad)
     validar_experiencia(datos.experiencia)
 
-    # --- VALIDACIÓN DE CONTRASEÑA SOLO SI SE ENVÍA ---
+    # ============================
+    # 🔒 VALIDAR EMPRESA (NO DUPLICAR)
+    # ============================
+    otro_supervisor = db.query(Supervisor).filter(
+        Supervisor.id_empresa_supervisor == datos.id_empresa_supervisor,
+        Supervisor.id_supervisor != supervisor.id_supervisor,
+        Supervisor.borrado == True
+    ).first()
+
+    if otro_supervisor:
+        raise HTTPException(
+            status_code=400,
+            detail="La empresa seleccionada ya tiene un supervisor asignado"
+        )
+
+    # ============================
+    # 🔐 ACTUALIZAR CONTRASEÑA (SI SE ENVÍA)
+    # ============================
     if datos.persona.contrasena and datos.persona.contrasena.strip() != "":
         validar_contrasena(datos.persona.contrasena)
         persona.contrasena = encriptar_contrasena(datos.persona.contrasena)
 
-    # --- Actualizar datos de persona ---
+    # ============================
+    # ✏️ ACTUALIZAR DATOS PERSONA
+    # ============================
     persona.cedula = datos.persona.cedula
     persona.nombre = datos.persona.nombre
     persona.apellido = datos.persona.apellido
@@ -332,14 +366,23 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     persona.genero = datos.persona.genero
     persona.fecha_nacimiento = datos.persona.fecha_nacimiento
 
-    # --- Actualizar datos de supervisor ---
+    # ============================
+    # ✏️ ACTUALIZAR DATOS SUPERVISOR
+    # ============================
     supervisor.especialidad_seguridad = datos.especialidad_seguridad
     supervisor.experiencia = datos.experiencia
+    supervisor.id_empresa_supervisor = datos.id_empresa_supervisor  # 🔥 CLAVE
 
+    # ============================
+    # 💾 GUARDAR CAMBIOS
+    # ============================
     db.commit()
     db.refresh(supervisor)
     db.refresh(persona)
 
+    # ============================
+    # ✅ RESPUESTA
+    # ============================
     return {
         "mensaje": "Supervisor actualizado correctamente",
         "id_supervisor": supervisor.id_supervisor,
@@ -347,8 +390,10 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
         "apellido": persona.apellido,
         "correo": persona.correo,
         "especialidad_seguridad": supervisor.especialidad_seguridad,
-        "experiencia": supervisor.experiencia
+        "experiencia": supervisor.experiencia,
+        "id_empresa_supervisor": supervisor.id_empresa_supervisor
     }
+
 
 def obtener_empresa_por_supervisor(db: Session, id_supervisor: int):
     # Buscar supervisor
