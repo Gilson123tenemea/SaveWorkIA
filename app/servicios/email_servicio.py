@@ -71,7 +71,7 @@ def enviar_email_token_cambio_contrasena(correo: str, nombre: str, token: str):
               
               <p style="color: #9ca3af; font-size: 12px;">
                 Sistema de Supervision de Seguridad<br>
-                2025 Todos los derechos reservados
+                2026 Todos los derechos reservados
               </p>
             </div>
           </body>

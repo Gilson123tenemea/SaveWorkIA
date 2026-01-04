@@ -14,6 +14,7 @@ from app.modelos.zona_modelo import Zona
 from app.modelos.trabajador_zona import TrabajadorZona
 from app.modelos.trabajador import Trabajador
 from app.modelos.camara_modelo import Camara
+from app.modelos.empresa_modelo import Empresa
 
 from app.Validaciones.validacion_usuario import (
     validar_cedula_ecuatoriana,
@@ -336,10 +337,11 @@ def eliminar_inspector(db: Session, id_inspector: int):
 
     return {"mensaje": "Inspector eliminado (borrado lógico en 3 tablas)"}
 
-
-# --- Login ---
 def login_inspector(db: Session, datos: LoginInspector):
-    persona = db.query(Persona).filter(Persona.correo == datos.correo).first()
+    persona = db.query(Persona).filter(
+        Persona.correo == datos.correo,
+        Persona.borrado == True
+    ).first()
 
     if not persona or persona.rol != "inspector":
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
@@ -353,15 +355,54 @@ def login_inspector(db: Session, datos: LoginInspector):
     ).first()
 
     if not inspector:
-        raise HTTPException(status_code=403, detail="El usuario no es inspector activo")
+        raise HTTPException(status_code=403, detail="Inspector no activo")
+
+    # 🔥 1️⃣ Buscar asignación Inspector → Zona
+    asignacion = db.query(InspectorZona).filter(
+        InspectorZona.id_inspector_inspectorzona == inspector.id_inspector,
+        InspectorZona.borrado == True
+    ).first()
+
+    if not asignacion:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspector no tiene zonas asignadas"
+        )
+
+    # 🔥 2️⃣ Obtener Zona
+    zona = db.query(Zona).filter(
+        Zona.id_Zona == asignacion.id_zona_inspectorzona,
+        Zona.borrado == True
+    ).first()
+
+    if not zona:
+        raise HTTPException(
+            status_code=404,
+            detail="Zona asignada no encontrada"
+        )
+
+    # 🔥 3️⃣ Obtener Empresa
+    empresa = db.query(Empresa).filter(
+        Empresa.id_Empresa == zona.id_empresa_zona,
+        Empresa.borrado == True
+    ).first()
+
+    if not empresa:
+        raise HTTPException(
+            status_code=404,
+            detail="Empresa no encontrada"
+        )
 
     return {
         "mensaje": "Inicio de sesión exitoso",
         "id_inspector": inspector.id_inspector,
+        "id_empresa": empresa.id_Empresa,
+        "empresa": empresa.nombreEmpresa,
         "nombre": persona.nombre,
         "correo": persona.correo,
-        "role": persona.rol
+        "rol": persona.rol
     }
+
 
 
 def listar_inspectores_por_supervisor(db: Session, id_supervisor: int):

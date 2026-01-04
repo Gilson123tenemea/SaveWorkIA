@@ -1,5 +1,8 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict
+from datetime import date, datetime
+from pydantic import BaseModel
+from typing import Optional, List, Dict
 from datetime import date, datetime
 
 class TrabajadorLoginRequest(BaseModel):
@@ -40,13 +43,12 @@ class TrabajadorPerfilResponse(BaseModel):
     telefono: Optional[str]
 
     cargo: str
-    area_trabajo: str
 
     empresa: EmpresaPerfil
     zona_asignada: Optional[ZonaAsignadaPerfil] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class EstadisticasAsistencia(BaseModel):
     total_registros: int
@@ -61,10 +63,17 @@ class EstadisticasIncumplimientos(BaseModel):
     pendientes: int
 
 
+class EppsPorZona(BaseModel):
+    zona: str
+    epps: List[str]
+
+
 class TrabajadorEstadisticasResponse(BaseModel):
     id_trabajador: int
     asistencia: EstadisticasAsistencia
     incumplimientos: EstadisticasIncumplimientos
+    detecciones: Dict[str, int]  
+    epps_por_zona: Dict[int, EppsPorZona] 
 
 
 class TrabajadorInfo(BaseModel):
@@ -91,6 +100,8 @@ class IncumplimientoTrabajadorItem(BaseModel):
     trabajador: TrabajadorInfo
     camara: CamaraInfo
     evidencia: EvidenciaInfo
+    detecciones: List[str]  
+    epps_zona: List[str]   
     fecha_registro: datetime
 
 
@@ -104,3 +115,41 @@ class EstadisticasTrabajador(BaseModel):
 class IncumplimientosTrabajadorResponse(BaseModel):
     estadisticas: EstadisticasTrabajador
     historial: List[IncumplimientoTrabajadorItem]
+
+    class Config:
+        from_attributes = True
+
+class InspectorInfo(BaseModel):
+    nombre: str
+    apellido: str
+    cedula: str
+
+
+class AsistenciaRegistroItem(BaseModel):
+    id_registro: int
+    fecha: date
+    hora: str
+    codigo_trabajador: str
+    cedula: str
+    nombre: str
+    apellido: str
+    nombre_zona: str
+    nombre_inspector: str
+    apellido_inspector: str
+    codigo_camara: str
+    cumple_epp: bool
+
+    class Config:
+        from_attributes = True
+
+
+class HistorialAsistenciasResponse(BaseModel):
+    total_registros: int
+    total_cumple: int
+    total_no_cumple: int
+    mes: Optional[int]
+    año: Optional[int]
+    registros: List[AsistenciaRegistroItem]
+
+    class Config:
+        from_attributes = True

@@ -11,6 +11,18 @@ from app.modelos.registros_asistencia import RegistroAsistencia
 from app.modelos.evidencias_fallo import EvidenciaFallo
 from app.modelos.camara_modelo import Camara
 import base64
+from app.modelos.zona_epp import ZonaEpp
+from sqlalchemy.orm import Session, joinedload
+from fastapi import HTTPException
+from sqlalchemy import func, case, extract
+from datetime import datetime
+from app.modelos.trabajador import Trabajador
+from app.modelos.persona import Persona
+from app.modelos.registros_asistencia import RegistroAsistencia
+from app.modelos.camara_modelo import Camara
+from app.modelos.zona_modelo import Zona
+from app.modelos.inspector import Inspector
+from typing import Optional
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -114,7 +126,6 @@ def obtener_perfil_trabajador(db: Session, id_trabajador: int):
         "correo": persona.correo,
         "telefono": persona.telefono,
         "cargo": trabajador.cargo,
-        "area_trabajo": trabajador.area_trabajo,
         "empresa": {
             "id_empresa": empresa.id_Empresa,
             "nombreEmpresa": empresa.nombreEmpresa,
@@ -123,6 +134,28 @@ def obtener_perfil_trabajador(db: Session, id_trabajador: int):
         },
         "zona_asignada": zona_data
     }
+
+def obtener_epp_humanos_por_zona(db: Session, id_zona: int) -> list[str]:
+    """
+    Devuelve los EPP obligatorios y activos de una zona
+    SIN duplicados
+    Ej: ["casco", "gafas"]
+    """
+
+    epps = (
+        db.query(ZonaEpp.tipo_epp)
+        .filter(
+            ZonaEpp.id_zona == id_zona,
+            ZonaEpp.activo == True,
+            ZonaEpp.obligatorio == True
+        )
+        .distinct()
+        .all()
+    )
+
+    # Convierte de [(casco,), (gafas,)] → ["casco", "gafas"]
+    return [epp[0] for epp in epps]
+
 
 def obtener_estadisticas_trabajador(db: Session, id_trabajador: int):
     # ---------------------------
@@ -160,46 +193,84 @@ def obtener_estadisticas_trabajador(db: Session, id_trabajador: int):
     # 📌 INCUMPLIMIENTOS (EVIDENCIAS)
     # ---------------------------
     total_fallos = (
-    db.query(func.count(EvidenciaFallo.id_evidencia))
-    .join(
-        RegistroAsistencia,
-        RegistroAsistencia.id_registro == EvidenciaFallo.id_registro
-    )
-    .filter(
-        RegistroAsistencia.id_trabajador == id_trabajador,
-        EvidenciaFallo.borrado == True
-    )
-    .scalar()
+        db.query(func.count(EvidenciaFallo.id_evidencia))
+        .join(
+            RegistroAsistencia,
+            RegistroAsistencia.id_registro == EvidenciaFallo.id_registro
+        )
+        .filter(
+            RegistroAsistencia.id_trabajador == id_trabajador,
+            EvidenciaFallo.borrado == True
+        )
+        .scalar()
     )
 
     revisados = (
-    db.query(func.count(EvidenciaFallo.id_evidencia))
-    .join(
-        RegistroAsistencia,
-        RegistroAsistencia.id_registro == EvidenciaFallo.id_registro
-    )
-    .filter(
-        RegistroAsistencia.id_trabajador == id_trabajador,
-        EvidenciaFallo.estado == True,
-        EvidenciaFallo.borrado == True
-    )
-    .scalar()
+        db.query(func.count(EvidenciaFallo.id_evidencia))
+        .join(
+            RegistroAsistencia,
+            RegistroAsistencia.id_registro == EvidenciaFallo.id_registro
+        )
+        .filter(
+            RegistroAsistencia.id_trabajador == id_trabajador,
+            EvidenciaFallo.estado == True,
+            EvidenciaFallo.borrado == True
+        )
+        .scalar()
     )
 
-    
     pendientes = (
-    db.query(func.count(EvidenciaFallo.id_evidencia))
-    .join(
-        RegistroAsistencia,
-        RegistroAsistencia.id_registro == EvidenciaFallo.id_registro
+        db.query(func.count(EvidenciaFallo.id_evidencia))
+        .join(
+            RegistroAsistencia,
+            RegistroAsistencia.id_registro == EvidenciaFallo.id_registro
+        )
+        .filter(
+            RegistroAsistencia.id_trabajador == id_trabajador,
+            EvidenciaFallo.estado == None,
+            EvidenciaFallo.borrado == True
+        )
+        .scalar()
     )
-    .filter(
-        RegistroAsistencia.id_trabajador == id_trabajador,
-        EvidenciaFallo.estado == None,
-        EvidenciaFallo.borrado == True
+
+    # ---------------------------
+    # 🔥 DETECCIONES YOLO (CLASES DETECTADAS)
+    # ---------------------------
+    registros_con_fallos = (
+        db.query(RegistroAsistencia)
+        .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
+        .filter(
+            RegistroAsistencia.id_trabajador == id_trabajador,
+            RegistroAsistencia.cumple_epp == False
+        )
+        .all()
     )
-    .scalar()
-   )
+
+    # Agregar detecciones únicas
+    detecciones_totales = {}
+    epps_por_zona = {}
+
+    for reg in registros_con_fallos:
+        evidencia = (
+            db.query(EvidenciaFallo)
+            .filter(EvidenciaFallo.id_registro == reg.id_registro)
+            .first()
+        )
+
+        # Extraer clases detectadas
+        if evidencia and evidencia.detalle_fallo:
+            clases = [c.strip() for c in evidencia.detalle_fallo.split(",") if c.strip()]
+            for clase in clases:
+                detecciones_totales[clase] = detecciones_totales.get(clase, 0) + 1
+
+        # Obtener EPPs obligatorios de la zona
+        if reg.camara and reg.camara.zona:
+            zona_id = reg.camara.zona.id_Zona
+            if zona_id not in epps_por_zona:
+                epps_por_zona[zona_id] = {
+                    "zona": reg.camara.zona.nombreZona,
+                    "epps": obtener_epp_humanos_por_zona(db, zona_id)
+                }
 
     return {
         "id_trabajador": id_trabajador,
@@ -213,10 +284,11 @@ def obtener_estadisticas_trabajador(db: Session, id_trabajador: int):
             "total_fallos": total_fallos,
             "revisados": revisados,
             "pendientes": pendientes
-        }
+        },
+        # 🔥 NUEVAS CLAVES
+        "detecciones": detecciones_totales,  # {"casco": 3, "chaleco": 2, ...}
+        "epps_por_zona": epps_por_zona  # {1: {"zona": "Zona A", "epps": [...]}, ...}
     }
-
-
 
 def obtener_incumplimientos_por_trabajador(
     db: Session,
@@ -286,6 +358,18 @@ def obtener_incumplimientos_por_trabajador(
         if evidencia and evidencia.foto_data:
             foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
 
+        # 🔥 CLASES YOLO DETECTADAS
+        clases_detectadas = []
+        if evidencia and evidencia.detalle_fallo:
+            clases_detectadas = [
+                c.strip() for c in evidencia.detalle_fallo.split(",") if c.strip()
+            ]
+
+        # 🔥 EPP OBLIGATORIOS DE LA ZONA
+        epps_zona = []
+        if reg.camara and reg.camara.zona:
+            epps_zona = obtener_epp_humanos_por_zona(db, reg.camara.zona.id_Zona)
+
         historial.append({
             "trabajador": {
                 "nombre": persona.nombre,
@@ -304,6 +388,9 @@ def obtener_incumplimientos_por_trabajador(
                 "estado": evidencia.estado,
                 "observaciones": evidencia.observaciones
             },
+            # 🔥 NUEVAS CLAVES
+            "detecciones": clases_detectadas,
+            "epps_zona": epps_zona,
             "fecha_registro": reg.fecha_hora
         })
 
@@ -318,4 +405,157 @@ def obtener_incumplimientos_por_trabajador(
             "tasa": round(tasa, 2)
         },
         "historial": historial
+    }
+
+def obtener_historial_asistencias(
+    db: Session,
+    id_trabajador: int,
+    mes: Optional[int] = None,
+    año: Optional[int] = None
+):
+    """
+    Obtiene el historial de asistencias de un trabajador con filtros opcionales.
+    
+    Args:
+        db: Session de SQLAlchemy
+        id_trabajador: ID del trabajador
+        mes: Mes (1-12) opcional para filtrar
+        año: Año opcional para filtrar
+    
+    Returns:
+        Dict con total de registros y lista de asistencias
+    """
+    
+    # ===========================
+    # 1️⃣ VALIDAR TRABAJADOR
+    # ===========================
+    trabajador = (
+        db.query(Trabajador)
+        .filter(
+            Trabajador.id_trabajador == id_trabajador,
+            Trabajador.borrado == True
+        )
+        .first()
+    )
+
+    if not trabajador:
+        raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+
+    persona = (
+        db.query(Persona)
+        .filter(
+            Persona.id_persona == trabajador.id_persona_trabajador,
+            Persona.borrado == True
+        )
+        .first()
+    )
+
+    # ===========================
+    # 2️⃣ CONSTRUIR QUERY
+    # ===========================
+    query = (
+        db.query(RegistroAsistencia)
+        .join(Camara, Camara.id_camara == RegistroAsistencia.id_camara)
+        .join(Zona, Zona.id_Zona == Camara.id_zona)
+        .options(
+            joinedload(RegistroAsistencia.camara)
+            .joinedload(Camara.zona)
+        )
+        .filter(
+            RegistroAsistencia.id_trabajador == id_trabajador
+        )
+    )
+
+    # ===========================
+    # 3️⃣ APLICAR FILTROS
+    # ===========================
+    if mes is not None and año is not None:
+        query = query.filter(
+            extract('month', RegistroAsistencia.fecha_hora) == mes,
+            extract('year', RegistroAsistencia.fecha_hora) == año
+        )
+    elif año is not None:
+        query = query.filter(
+            extract('year', RegistroAsistencia.fecha_hora) == año
+        )
+
+    # ===========================
+    # 4️⃣ ORDENAR Y EJECUTAR
+    # ===========================
+    registros = query.order_by(
+        RegistroAsistencia.fecha_hora.desc()
+    ).all()
+
+    # ===========================
+    # 5️⃣ PROCESAR RESULTADOS
+    # ===========================
+    total_cumple = sum(1 for r in registros if r.cumple_epp is True)
+    total_no_cumple = sum(1 for r in registros if r.cumple_epp is False)
+
+    historial = []
+
+    for reg in registros:
+        inspector_data = None
+        if reg.camara and reg.camara.zona:
+
+            zona = reg.camara.zona
+            
+            # Si tienes una relación directa entre zona e inspector
+            # descomenta y ajusta según tu modelo:
+            # inspector = db.query(Inspector).filter(
+            #     Inspector.id_zona == zona.id_Zona
+            # ).first()
+
+            # Si no, puedes obtenerlo desde el supervisor del trabajador
+            inspector = (
+                db.query(Inspector)
+                .join(Persona, Persona.id_persona == Inspector.id_persona_inspector)
+                .filter(
+                    Inspector.borrado == True
+                )
+                .first()
+            )
+
+            if inspector:
+                inspector_persona = (
+                    db.query(Persona)
+                    .filter(Persona.id_persona == inspector.id_persona_inspector)
+                    .first()
+                )
+                if inspector_persona:
+                    inspector_data = {
+                        "nombre": inspector_persona.nombre,
+                        "apellido": inspector_persona.apellido,
+                        "cedula": inspector_persona.cedula
+                    }
+
+        # Extraer fecha y hora
+        fecha_registro = reg.fecha_hora
+        hora_str = fecha_registro.strftime("%H:%M:%S") if fecha_registro else "N/A"
+
+        historial.append({
+            "id_registro": reg.id_registro,
+            "fecha": fecha_registro.date() if fecha_registro else None,
+            "hora": hora_str,
+            "codigo_trabajador": trabajador.codigo_trabajador,
+            "cedula": persona.cedula,
+            "nombre": persona.nombre,
+            "apellido": persona.apellido,
+            "nombre_zona": reg.camara.zona.nombreZona if reg.camara and reg.camara.zona else "N/A",
+            "nombre_inspector": inspector_data["nombre"] if inspector_data else "N/A",
+            "apellido_inspector": inspector_data["apellido"] if inspector_data else "N/A",
+            "codigo_camara": reg.camara.codigo if reg.camara else "N/A",
+            "cumple_epp": reg.cumple_epp
+        })
+
+    # ===========================
+    # 6️⃣ RETORNAR RESPUESTA
+    # ===========================
+    return {
+        "total_registros": len(registros),
+        "total_cumple": total_cumple,
+        "total_no_cumple": total_no_cumple,
+        "mes": mes,
+        "año": año,
+        "registros": historial
     }
