@@ -253,6 +253,17 @@ def validar_estado_trabajador(estado):
             detail="El estado debe ser 'activo' o 'inactivo'"
         )
 
+# ============================================================
+# ✔ CORREO DISPONIBLE (SIN EXCEPCIÓN → PARA FRONT)
+# ============================================================
+def correo_disponible(db: Session, correo: str) -> bool:
+    existente = db.query(Persona).filter(
+        Persona.correo == correo,
+        Persona.borrado == True
+    ).first()
+
+    return not bool(existente)
+
 
 def validar_codigo_trabajador(codigo: str):
     campo_obligatorio(codigo, "código trabajador")

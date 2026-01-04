@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.supervisor_esquema import SupervisorPerfilUpdate
+from app.Validaciones.validacion_usuario import correo_disponible
+from app.modelos.persona import Persona
+
+
 
 from app.esquemas.supervisor_esquema import (
     SupervisorCreate,
@@ -116,3 +120,19 @@ def actualizar_perfil(
 def obtener_empresas_sin_supervisor(db: Session = Depends(get_db)):
     from app.servicios.supervisor_servicio import listar_empresas_sin_supervisor
     return listar_empresas_sin_supervisor(db)
+
+# En supervisor_ruta.py - REEMPLAZA tu endpoint actual
+
+@router.get("/validar-correo")
+def validar_correo_supervisor(correo: str, db: Session = Depends(get_db)):
+    """
+    Valida si un correo está disponible (no existe en usuarios ACTIVOS de cualquier rol)
+    """
+    existe = db.query(Persona).filter(
+        Persona.correo == correo,
+        Persona.borrado == True  # Solo usuarios activos
+    ).first()
+
+    return {
+        "disponible": not bool(existe)
+    }

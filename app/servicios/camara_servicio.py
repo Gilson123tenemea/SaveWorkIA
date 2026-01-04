@@ -22,6 +22,7 @@ import numpy as np
 # ============================================================
 def validar_unicidad_camara(db: Session, camara: CamaraCreate):
 
+    # 🔹 Verificar que la zona exista y esté activa
     zona = db.query(Zona).filter(
         Zona.id_Zona == camara.id_zona,
         Zona.borrado == True
@@ -29,32 +30,22 @@ def validar_unicidad_camara(db: Session, camara: CamaraCreate):
 
     if not zona:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail="La zona seleccionada no existe o está inactiva"
         )
 
-    empresa_id = zona.id_empresa_zona
-
-    zonas_empresa = db.query(Zona.id_Zona).filter(
-        Zona.id_empresa_zona == empresa_id
-    ).subquery()
-
-    # -------------------------
-    # 🔍 VALIDAR CÓDIGO (esto sí se mantiene)
-    # -------------------------
+    # 🔹 VALIDAR CÓDIGO ÚNICO SOLO EN LA MISMA ZONA
     codigo_dup = db.query(Camara).filter(
         Camara.codigo == camara.codigo,
-        Camara.id_zona.in_(zonas_empresa),
+        Camara.id_zona == camara.id_zona,
         Camara.borrado == True
     ).first()
 
     if codigo_dup:
         raise HTTPException(
             status_code=400,
-            detail="Ya existe una cámara activa con ese código en esta empresa"
+            detail="Ya existe una cámara activa con ese código en esta zona"
         )
-
-    # ❌ VALIDACIÓN DE IP ELIMINADA
 
 # ============================================================
 # 🔹 CREAR CÁMARA
