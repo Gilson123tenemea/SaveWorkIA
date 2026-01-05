@@ -81,7 +81,7 @@ def obtener_zonas_por_inspector(id_inspector: int, db: Session = Depends(get_db)
 def obtener_perfil_inspector(id_inspector: int, db: Session = Depends(get_db)):
     return inspector_servicio.obtener_perfil_inspector(db, id_inspector)
 
-# 🆕 --- ACTUALIZAR PERFIL DEL INSPECTOR ---
+
 @router.put("/perfil/{id_inspector}")
 def actualizar_perfil_inspector(
     id_inspector: int,

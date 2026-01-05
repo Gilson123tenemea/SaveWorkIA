@@ -396,6 +396,7 @@ def login_inspector(db: Session, datos: LoginInspector):
     return {
         "mensaje": "Inicio de sesión exitoso",
         "id_inspector": inspector.id_inspector,
+        "id_persona": persona.id_persona, 
         "id_empresa": empresa.id_Empresa,
         "empresa": empresa.nombreEmpresa,
         "nombre": persona.nombre,

@@ -12,6 +12,7 @@ class TrabajadorLoginRequest(BaseModel):
 
 class TrabajadorLoginResponse(BaseModel):
     id_trabajador: int
+    id_persona: int
     nombre: str
     apellido: str
     correo: str

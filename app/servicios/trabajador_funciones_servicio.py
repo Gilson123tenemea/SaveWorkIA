@@ -71,6 +71,7 @@ def login_trabajador(db: Session, correo: str, contrasena: str):
 
     return {
         "id_trabajador": trabajador.id_trabajador,
+        "id_persona": persona.id_persona, 
         "nombre": persona.nombre,
         "apellido": persona.apellido,
         "correo": persona.correo,

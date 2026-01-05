@@ -63,3 +63,13 @@ class TrabajadorResponse(TrabajadorBase):
 class LoginTrabajador(BaseModel):
     correo: EmailStr
     contrasena: str
+
+class LoginTrabajadorResponse(BaseModel):
+    mensaje: str
+    id_trabajador: int
+    id_persona: int
+    id_supervisor: int
+    id_empresa_trabajador: int
+    nombre: str
+    correo: EmailStr
+    rol: str

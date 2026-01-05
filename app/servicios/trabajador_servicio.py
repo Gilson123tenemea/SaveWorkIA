@@ -575,6 +575,7 @@ def login_trabajador(db: Session, correo: str, contrasena: str):
     return {
         "mensaje": "Inicio de sesión exitoso",
         "id_trabajador": trabajador.id_trabajador,
+        "id_persona": persona.id_persona, 
         "id_supervisor": trabajador.id_supervisor_trabajador,
         "id_empresa_trabajador": trabajador.id_empresa,
         "nombre": persona.nombre,
