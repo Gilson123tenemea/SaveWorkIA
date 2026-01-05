@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from datetime import date, datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import date, datetime
 
@@ -41,9 +41,8 @@ class TrabajadorPerfilResponse(BaseModel):
     apellido: str
     correo: str
     telefono: Optional[str]
-
     cargo: str
-
+    foto_base64: Optional[str] = None 
     empresa: EmpresaPerfil
     zona_asignada: Optional[ZonaAsignadaPerfil] = None
 
@@ -150,6 +149,45 @@ class HistorialAsistenciasResponse(BaseModel):
     mes: Optional[int]
     año: Optional[int]
     registros: List[AsistenciaRegistroItem]
+
+    class Config:
+        from_attributes = True
+
+class ActualizarTrabajadorRequest(BaseModel):
+    """
+    Esquema para actualizar datos del trabajador.
+    Todos los campos son opcionales y pueden venir del body directamente.
+    """
+    nombre: Optional[str] = Field(None, min_length=1, max_length=50)
+    apellido: Optional[str] = Field(None, min_length=1, max_length=50)
+    correo: Optional[str] = Field(None, max_length=150)
+    telefono: Optional[str] = Field(None, max_length=10)
+    cargo: Optional[str] = Field(None, min_length=1, max_length=50)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "nombre": "Juan",
+                "apellido": "Pérez",
+                "correo": "juan.perez@example.com",
+                "telefono": "0987654321",
+                "cargo": "Técnico de Seguridad"
+            }
+        }
+
+
+class ActualizarTrabajadorResponse(BaseModel):
+    """
+    Respuesta al actualizar trabajador
+    """
+    id_trabajador: int
+    cedula: str
+    nombre: str
+    apellido: str
+    correo: str
+    telefono: Optional[str]
+    cargo: str
+    mensaje: str
 
     class Config:
         from_attributes = True

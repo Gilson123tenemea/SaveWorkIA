@@ -553,5 +553,6 @@ def obtener_perfil_inspector(db: Session, id_inspector: int):
         "fecha_nacimiento": persona.fecha_nacimiento,
         "frecuenciaVisita": inspector.frecuenciaVisita,
         "fotoBase64": foto_base64,
+        "zonas_asignadas": [] 
     }
 
