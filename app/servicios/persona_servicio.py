@@ -42,3 +42,12 @@ def actualizar_foto_persona(db: Session, id_persona: int, foto_base64: str):
     db.commit()
 
     return {"mensaje": "Foto actualizada correctamente"}
+
+def obtener_persona_por_correo(db: Session, correo: str):
+    """
+    🔍 Busca una persona activa por su correo electrónico
+    """
+    return db.query(Persona).filter(
+        Persona.correo == correo,
+        Persona.borrado == True  # Solo personas activas
+    ).first()

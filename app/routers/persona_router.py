@@ -25,6 +25,28 @@ def listar_personas(db: Session = Depends(get_db)):
     return persona_servicio.obtener_personas(db)
 
 
+# ⚠️ ESTE DEBE IR ANTES DEL GET /{persona_id}
+@router.get("/buscar-por-correo")
+def buscar_por_correo(correo: str, db: Session = Depends(get_db)):
+    """
+    🔍 Busca una persona activa por correo
+    Ejemplo: GET /personas/buscar-por-correo?correo=freddy@admin.com
+    """
+    persona = persona_servicio.obtener_persona_por_correo(db, correo)
+    
+    if not persona:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró una persona registrada con ese correo"
+        )
+    
+    return {
+        "id_persona": persona.id_persona,
+        "correo": persona.correo,
+        "nombre": persona.nombre
+    }
+
+
 @router.get("/{persona_id}", response_model=PersonaResponse)
 def obtener_persona(persona_id: int, db: Session = Depends(get_db)):
     persona = persona_servicio.obtener_persona_por_id(db, persona_id)
