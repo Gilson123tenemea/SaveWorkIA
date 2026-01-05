@@ -52,6 +52,7 @@ class ZonaAsignadaInspector(BaseModel):
 
     class Config:
         orm_mode = True
+
 class ZonaAsignadaPerfil(BaseModel):
     id_Zona: int
     nombreZona: str
@@ -72,9 +73,22 @@ class InspectorPerfil(BaseModel):
     genero: str
     fecha_nacimiento: date
     frecuenciaVisita: Optional[str] = None
-
-    zonas_asignadas: List[ZonaAsignadaPerfil]  
     fotoBase64: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+# 🆕 --- Schema para actualizar perfil del inspector ---
+class InspectorPerfilUpdate(BaseModel):
+    """
+    Schema para actualizar el perfil del inspector desde la interfaz de usuario.
+    Solo permite actualizar: nombre, apellido, correo
+    Teléfono es opcional pero no se edita desde el perfil (solo lectura en frontend)
+    """
+    nombre: str
+    apellido: str
+    correo: EmailStr
+    telefono: Optional[str] = None
 
     class Config:
         orm_mode = True

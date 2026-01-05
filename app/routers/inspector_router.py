@@ -6,7 +6,8 @@ from app.esquemas.inspector_esquema import (
     InspectorCreate,
     LoginInspector,
     ZonaAsignadaInspector,
-    InspectorPerfil,   # 👈 NUEVO
+    InspectorPerfil,
+    InspectorPerfilUpdate,  # 👈 NUEVO
 )
 from app.servicios import inspector_servicio
 
@@ -36,7 +37,7 @@ def validar_correo_disponible(correo: str, db: Session = Depends(get_db)):
     from app.servicios.inspector_servicio import correo_existe_activo
     existe = correo_existe_activo(db, correo)
     return {
-        "disponible": not existe,  # ← Invertido: disponible = NO existe
+        "disponible": not existe,
         "correo": correo,
         "mensaje": "Correo disponible" if not existe else "Correo ya registrado"
     }
@@ -75,7 +76,16 @@ def listar_inspectores_por_supervisor(id_supervisor: int, db: Session = Depends(
 def obtener_zonas_por_inspector(id_inspector: int, db: Session = Depends(get_db)):
     return inspector_servicio.obtener_zonas_por_inspector(db, id_inspector)
 
-# 🆕 --- PERFIL DEL INSPECTOR ---
+# --- PERFIL DEL INSPECTOR ---
 @router.get("/perfil/{id_inspector}", response_model=InspectorPerfil)
 def obtener_perfil_inspector(id_inspector: int, db: Session = Depends(get_db)):
     return inspector_servicio.obtener_perfil_inspector(db, id_inspector)
+
+# 🆕 --- ACTUALIZAR PERFIL DEL INSPECTOR ---
+@router.put("/perfil/{id_inspector}")
+def actualizar_perfil_inspector(
+    id_inspector: int,
+    request: InspectorPerfilUpdate,
+    db: Session = Depends(get_db)
+):
+    return inspector_servicio.actualizar_perfil_inspector(db, id_inspector, request)

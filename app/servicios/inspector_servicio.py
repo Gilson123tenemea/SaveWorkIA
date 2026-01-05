@@ -495,7 +495,9 @@ def correo_existe_activo(db: Session, correo: str) -> bool:
     return persona is not None
 
 def obtener_perfil_inspector(db: Session, id_inspector: int):
-
+    """
+    📋 Obtener perfil completo del inspector
+    """
     inspector = db.query(Inspector).filter(
         Inspector.id_inspector == id_inspector,
         Inspector.borrado == True
@@ -510,27 +512,6 @@ def obtener_perfil_inspector(db: Session, id_inspector: int):
 
     if not persona:
         raise HTTPException(status_code=404, detail="Persona asociada no encontrada")
-
-    # 🔹 TODAS las zonas asignadas al inspector
-    zonas = (
-        db.query(InspectorZona, Zona)
-        .join(Zona, Zona.id_Zona == InspectorZona.id_zona_inspectorzona)
-        .filter(
-            InspectorZona.id_inspector_inspectorzona == inspector.id_inspector,
-            InspectorZona.borrado == True,
-            Zona.borrado == True
-        )
-        .all()
-    )
-
-    zonas_asignadas = []
-    for iz, zona in zonas:
-        zonas_asignadas.append({
-            "id_Zona": zona.id_Zona,
-            "nombreZona": zona.nombreZona,
-            "fecha_asignacion": iz.fecha_asignacion.date()
-            if iz.fecha_asignacion else None
-        })
 
     # 🔹 FOTO
     foto_base64 = None
@@ -553,6 +534,91 @@ def obtener_perfil_inspector(db: Session, id_inspector: int):
         "fecha_nacimiento": persona.fecha_nacimiento,
         "frecuenciaVisita": inspector.frecuenciaVisita,
         "fotoBase64": foto_base64,
-        "zonas_asignadas": [] 
     }
 
+# Agregar al final de app/servicios/inspector_servicio.py
+
+def actualizar_perfil_inspector(
+    db: Session,
+    id_inspector: int,
+    datos
+):
+    """
+    ✏️ Actualizar perfil del inspector
+    Solo puede editar: nombre, apellido, correo
+    """
+    # 🔎 Buscar inspector activo
+    inspector = db.query(Inspector).filter(
+        Inspector.id_inspector == id_inspector,
+        Inspector.borrado == True
+    ).first()
+
+    if not inspector:
+        raise HTTPException(
+            status_code=404,
+            detail="Inspector no encontrado"
+        )
+
+    # 🔎 Buscar persona activa
+    persona = db.query(Persona).filter(
+        Persona.id_persona == inspector.id_persona_inspector,
+        Persona.borrado == True
+    ).first()
+
+    if not persona:
+        raise HTTPException(
+            status_code=404,
+            detail="Persona no encontrada"
+        )
+
+    # 🔒 Validar que el correo no esté en uso por otra persona activa
+    if datos.correo and datos.correo != persona.correo:
+        correo_existente = db.query(Persona).filter(
+            Persona.correo == datos.correo,
+            Persona.id_persona != persona.id_persona,
+            Persona.borrado == True
+        ).first()
+
+        if correo_existente:
+            raise HTTPException(
+                status_code=400,
+                detail="El correo ya está en uso por otra persona"
+            )
+
+    # ✏️ Actualizar datos de la persona
+    if datos.nombre:
+        validar_nombre(datos.nombre)
+        persona.nombre = datos.nombre
+    
+    if datos.apellido:
+        validar_apellido(datos.apellido)
+        persona.apellido = datos.apellido
+    
+    if datos.correo:
+        validar_correo_formato(datos.correo)
+        persona.correo = datos.correo
+    
+    # Teléfono es opcional pero no se edita desde el perfil
+    if datos.telefono is not None:
+        persona.telefono = datos.telefono
+
+    try:
+        db.commit()
+        db.refresh(persona)
+
+        return {
+            "mensaje": "Perfil actualizado correctamente",
+            "id_inspector": id_inspector,
+            "id_persona": persona.id_persona,
+            "nombre": persona.nombre,
+            "apellido": persona.apellido,
+            "correo": persona.correo,
+            "telefono": persona.telefono
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al actualizar el perfil: {str(e)}"
+        )
