@@ -10,6 +10,8 @@ from app.esquemas.inspector_esquema import (
     InspectorPerfilUpdate,  # 👈 NUEVO
 )
 from app.servicios import inspector_servicio
+from app.esquemas.fcm_token_esquema import FCMTokenRegistro, FCMTokenDelete
+from app.servicios import fcm_token_servicio
 
 router = APIRouter(prefix="/inspectores", tags=["Inspectores"])
 
@@ -89,3 +91,56 @@ def actualizar_perfil_inspector(
     db: Session = Depends(get_db)
 ):
     return inspector_servicio.actualizar_perfil_inspector(db, id_inspector, request)
+# --- FCM TOKENS ---
+
+@router.post("/{id_inspector}/fcm-token")
+def registrar_token_fcm(
+    id_inspector: int,
+    request: FCMTokenRegistro,
+    db: Session = Depends(get_db)
+):
+ 
+    return fcm_token_servicio.registrar_token_fcm(db, id_inspector, request)
+
+@router.get("/{id_inspector}/fcm-tokens")
+def obtener_tokens_inspector(
+    id_inspector: int,
+    db: Session = Depends(get_db)
+):
+  
+    return fcm_token_servicio.obtener_tokens_inspector(db, id_inspector)
+
+@router.delete("/{id_inspector}/fcm-token")
+def eliminar_token_fcm(
+    id_inspector: int,
+    request: FCMTokenDelete,
+    db: Session = Depends(get_db)
+):
+ 
+    return fcm_token_servicio.eliminar_token_fcm(db, id_inspector, request.token_fcm)
+
+@router.post("/{id_inspector}/test-notificacion")
+def test_enviar_notificacion(
+    id_inspector: int,
+    db: Session = Depends(get_db)
+):
+    """
+    🧪 Prueba enviando una notificación
+    
+    POST /inspectores/1/test-notificacion
+    """
+    from app.servicios.notificaciones_fcm_servicio import NotificacionesFCMServicio
+    
+    exito = NotificacionesFCMServicio.enviar_notificacion_inspector(
+        db,
+        id_inspector,
+        titulo="⚠️ Prueba de Notificación",
+        cuerpo="Esta es una notificación de prueba desde el backend",
+        datos={"tipo": "prueba", "id_inspector": str(id_inspector)}
+    )
+    
+    return {
+        "mensaje": "Notificación enviada",
+        "exito": exito,
+        "id_inspector": id_inspector
+    }

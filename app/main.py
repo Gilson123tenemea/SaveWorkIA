@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
-
+from app.servicios.notificaciones_fcm_servicio import NotificacionesFCMServicio
 from app.config import Base, engine, SessionLocal
 
 # ----------------------------------------------------------------------
@@ -28,6 +28,7 @@ from app.modelos import registros_asistencia
 from app.modelos import evidencias_fallo
 from app.modelos import zona_epp
 from app.modelos import token_reset_modelo
+from app.modelos import fcm_token_modelo
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
@@ -150,3 +151,11 @@ def root():
             "message": "🚀 Proyecto SaveWorkIA funcionando",
             "db_status": f"❌ Error en la base de datos: {e}"
         }
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Se ejecuta cuando inicia la app"""
+    NotificacionesFCMServicio.inicializar()
+    print('✅ App iniciada - Firebase listo para notificaciones')
+

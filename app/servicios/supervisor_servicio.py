@@ -268,7 +268,8 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
     return {
         "mensaje": "Inicio de sesión exitoso",
         "id_supervisor": supervisor.id_supervisor,
-        "id_empresa_supervisor": supervisor.id_empresa_supervisor,  # 👈 NECESARIO
+        "id_empresa_supervisor": supervisor.id_empresa_supervisor, 
+        "id_persona": persona.id_persona, 
         "nombre": persona.nombre,
         "correo": persona.correo,
         "rol": persona.rol
