@@ -22,6 +22,8 @@ class ZonaDetallesResponse(BaseModel):
     inspector: Optional[InspectorPersona] = None
     total_camaras: int
     total_trabajadores: int
+    total_registros: int 
+    total_fallos: int     
 
     class Config:
         orm_mode = True

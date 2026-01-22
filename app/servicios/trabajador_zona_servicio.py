@@ -1,11 +1,16 @@
 from sqlalchemy.orm import Session
 from app.modelos.supervisor import Supervisor
 from app.modelos.zona_modelo import Zona
+from sqlalchemy import func
 from app.modelos.inspector_zona import InspectorZona
 from app.modelos.inspector import Inspector
 from app.modelos.persona import Persona
 from app.modelos.camara_modelo import Camara
 from app.modelos.trabajador_zona import TrabajadorZona
+from app.esquemas.trabajador_zona_esquema import TrabajadorZonaCreate
+from app.modelos.trabajador import Trabajador
+from app.modelos.registros_asistencia import RegistroAsistencia
+from app.modelos.evidencias_fallo import EvidenciaFallo
 from app.esquemas.trabajador_zona_esquema import TrabajadorZonaCreate
 from app.modelos.trabajador import Trabajador
 
@@ -20,8 +25,8 @@ def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
 
     empresa_id = supervisor.id_empresa_supervisor
     zonas = db.query(Zona).filter(
-      Zona.id_empresa_zona == empresa_id,
-      Zona.borrado == True
+        Zona.id_empresa_zona == empresa_id,
+        Zona.borrado == True
     ).all()
 
     respuesta = []
@@ -69,6 +74,17 @@ def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
             TrabajadorZona.borrado == True
         ).count()
 
+        # 📝 Total de registros de asistencia en la zona
+        total_registros = db.query(RegistroAsistencia).filter(
+            RegistroAsistencia.id_zona == zona.id_Zona
+        ).count()
+
+        # 🚨 Total de fallos en la zona (cumple_epp = False)
+        total_fallos = db.query(RegistroAsistencia).filter(
+            RegistroAsistencia.id_zona == zona.id_Zona,
+            RegistroAsistencia.cumple_epp == False
+        ).count()
+
         respuesta.append({
             "zona": {
                 "id": zona.id_Zona,
@@ -78,7 +94,9 @@ def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
             },
             "inspector": inspector_data,
             "total_camaras": total_camaras,
-            "total_trabajadores": total_trabajadores
+            "total_trabajadores": total_trabajadores,
+            "total_registros": total_registros,
+            "total_fallos": total_fallos
         })
 
     return respuesta
