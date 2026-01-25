@@ -333,12 +333,15 @@ def generar_pdf_trabajadores_zona(
     styles = getSampleStyleSheet()
     story = []
 
+    nombre_zona = rows[0].nombreZona if rows else "Desconocida"
+
     story.append(Paragraph(
-        f"Reporte de Trabajadores – Zona {id_zona}",
-        styles["Title"]
+        f"Reporte de Trabajadores – Zona {nombre_zona}",  
+    styles["Title"]
     ))
+
     story.append(Paragraph(
-        f"Inspector ID: {id_inspector} | Desde {fecha_desde} hasta {fecha_hasta}",
+        f"Período: {fecha_desde} hasta {fecha_hasta}",
         styles["Normal"]
     ))
     story.append(Spacer(1, 10))

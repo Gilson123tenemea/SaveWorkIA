@@ -48,6 +48,7 @@ def registrar_asistencia(
 # ==========================================================
 # VERIFICAR EPP (IA + ZONA)
 # ==========================================================
+
 @router.post("/verificar-epp/{id_camara}")
 def verificar_epp(
     id_camara: int,
@@ -58,9 +59,64 @@ def verificar_epp(
     try:
         trabajador_data = request_body if isinstance(request_body, dict) else {}
 
-        print("\n" + "=" * 60)
+        print("\n" + "=" * 80)
         print(f"🔍 Verificando EPP | Cámara: {id_camara} | Trabajador: {codigo_trabajador}")
-        print("=" * 60 + "\n")
+        print("=" * 80)
+
+        # 🆕 DEBUG: VER QUÉ RECIBE EL BACKEND
+        print(f"\n📦 DATOS RECIBIDOS:")
+        print(f"   Type trabajador_data: {type(trabajador_data)}")
+        print(f"   Contenido completo: {trabajador_data}")
+        if isinstance(trabajador_data, dict):
+            print(f"   Keys disponibles: {list(trabajador_data.keys())}")
+        print()
+
+        # ==================================================
+        # 🆕 0️⃣ VALIDAR TRABAJADOR EN LA EMPRESA
+        # ==================================================
+        from app.modelos.trabajador import Trabajador
+        
+        id_empresa = trabajador_data.get("id_empresa")
+        id_trabajador = trabajador_data.get("id_trabajador")
+
+        print(f"🔎 VALORES EXTRAÍDOS:")
+        print(f"   id_empresa: {id_empresa} (tipo: {type(id_empresa)})")
+        print(f"   id_trabajador: {id_trabajador} (tipo: {type(id_trabajador)})")
+        print()
+
+        if not id_empresa or not id_trabajador:
+            print(f"❌ VALIDACIÓN FALLIDA - Faltan datos obligatorios")
+            raise HTTPException(
+                status_code=400,
+                detail="❌ Faltan datos: id_empresa o id_trabajador"
+            )
+
+        print(f"✅ Datos básicos validados\n")
+
+       # 🆕 BÚSQUEDA CORRECTA: borrado = True = Activo (en tu BD)
+        print(f"🔍 BUSCANDO EN BD:")
+        print(f"   Buscando: codigo={codigo_trabajador}, id_empresa={id_empresa}, borrado=True (activo)")
+        
+        trabajador_bd = db.query(Trabajador).filter(
+            Trabajador.codigo_trabajador == codigo_trabajador,
+            Trabajador.id_empresa == id_empresa,
+            Trabajador.borrado == True  # ← CAMBIO: True en lugar de False
+        ).first()
+
+        if not trabajador_bd:
+            print(f"❌ TRABAJADOR NO ENCONTRADO EN BD")
+            raise HTTPException(
+                status_code=404,
+                detail=f"❌ Trabajador {codigo_trabajador} no existe en la empresa {id_empresa}"
+            )
+
+        print(f"✅ Trabajador validado: {trabajador_bd.persona.nombre}")
+        print(f"   ID real en BD: {trabajador_bd.id_trabajador}")
+        print("=" * 80 + "\n")
+        
+        # 🆕 ACTUALIZAR id_trabajador con el valor real de BD
+        id_trabajador = trabajador_bd.id_trabajador
+        trabajador_data["id_trabajador"] = id_trabajador
 
         # ==================================================
         # 1️⃣ CÁMARA Y ZONA

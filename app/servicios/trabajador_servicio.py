@@ -446,11 +446,12 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
     # 1️⃣ Buscar trabajador por código
     trabajador = db.query(Trabajador).filter(
         Trabajador.codigo_trabajador == codigo,
+        Trabajador.id_empresa == id_empresa,  # ← FILTRO DESDE EL INICIO
         Trabajador.borrado == True
     ).first()
 
     if not trabajador:
-        raise HTTPException(status_code=404, detail="No existe trabajador con ese código")
+       raise HTTPException(404, f"No existe trabajador con código {codigo} en esta empresa")
 
     # 2️⃣ Validar si pertenece a la empresa enviada del front
     if trabajador.id_empresa != id_empresa:
