@@ -139,7 +139,10 @@ def obtener_epp_humanos_por_zona(db: Session, id_zona: int) -> list[str]:
 
     # Convierte de [(casco,), (gafas,)] → ["casco", "gafas"]
     return [epp[0] for epp in epps]
+
 def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
+    from datetime import date
+    
     # 1️⃣ BUSCAR TRABAJADOR POR CEDULA
     trabajador = (
         db.query(Trabajador)
@@ -166,6 +169,20 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
     cumple = len([r for r in todos if r.cumple_epp is True])
     incumple = total - cumple
     tasa = (cumple / total * 100) if total > 0 else 0
+
+    # ✅ CONTAR REVISADOS (estado == 0/False en evidencias_fallo)
+    # Los revisados son los que tienen estado = False (0 en BD)
+    todas_evidencias = (
+        db.query(EvidenciaFallo)
+        .join(RegistroAsistencia, RegistroAsistencia.id_registro == EvidenciaFallo.id_registro)
+        .filter(
+            RegistroAsistencia.id_trabajador == trabajador.id_trabajador
+        )
+        .all()
+    )
+    
+    # Contamos los que tienen estado == False (revisados)
+    revisados = sum(1 for ev in todas_evidencias if ev.estado is False)
 
     # ===========================
     # 3️⃣ INCUMPLIMIENTOS
@@ -220,11 +237,8 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
                     codigo=reg.camara.codigo,
                     zona=zona.nombreZona
                 ),
-
-                # ✅ NUEVO (CLAVES QUE EL FRONT NECESITA)
                 detecciones=clases_detectadas,
                 epps_zona=epps_zona,
-
                 evidencia=EvidenciaInfo(
                     id_evidencia=evidencia.id_evidencia,
                     detalle=evidencia.detalle_fallo,
@@ -245,6 +259,7 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
             "total": total,
             "cumple": cumple,
             "incumple": incumple,
+            "revisados": revisados,
             "tasa": round(tasa, 2)
         },
         "historial": resultados

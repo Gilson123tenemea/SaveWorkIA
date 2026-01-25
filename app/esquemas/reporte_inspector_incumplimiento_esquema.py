@@ -44,6 +44,7 @@ class EstadisticasIncumplimiento(BaseModel):
     total: int
     cumple: int
     incumple: int
+    revisados: int 
     tasa: float
 
 
