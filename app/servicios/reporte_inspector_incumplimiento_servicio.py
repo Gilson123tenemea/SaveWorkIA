@@ -23,9 +23,6 @@ from app.esquemas.reporte_inspector_incumplimiento_esquema import (
     IncumplimientoInspectorResponse
 )
 
-
-# app/servicios/reporte_inspector_incumplimiento_servicio.py
-
 def obtener_incumplimientos_por_inspector(
     db: Session,
     id_inspector: int,
@@ -33,6 +30,8 @@ def obtener_incumplimientos_por_inspector(
     fecha_hasta: str | None = None,
     id_zona: int | None = None
 ):
+    from datetime import date, datetime, timedelta
+    
     query = (
         db.query(RegistroAsistencia)
         .join(EvidenciaFallo, EvidenciaFallo.id_registro == RegistroAsistencia.id_registro)
@@ -46,17 +45,25 @@ def obtener_incumplimientos_por_inspector(
         )
     )
 
-    # Filtros por fecha y zona
-    if fecha_desde:
-        fecha_d = datetime.strptime(fecha_desde, "%Y-%m-%d")
-        query = query.filter(RegistroAsistencia.fecha_hora >= fecha_d)
-
-    if fecha_hasta:
-        fecha_h = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1) - timedelta(seconds=1)
-        query = query.filter(RegistroAsistencia.fecha_hora <= fecha_h)
-
+    
     if id_zona:
         query = query.filter(RegistroAsistencia.id_zona == id_zona)
+    else:
+        if fecha_desde:
+            fecha_d = datetime.strptime(fecha_desde, "%Y-%m-%d")
+            query = query.filter(RegistroAsistencia.fecha_hora >= fecha_d)
+        else:
+            hoy = date.today()
+            inicio_dia = datetime.combine(hoy, datetime.min.time())
+            query = query.filter(RegistroAsistencia.fecha_hora >= inicio_dia)
+
+        if fecha_hasta:
+            fecha_h = datetime.strptime(fecha_hasta, "%Y-%m-%d") + timedelta(days=1) - timedelta(seconds=1)
+            query = query.filter(RegistroAsistencia.fecha_hora <= fecha_h)
+        else:
+            hoy = date.today()
+            fin_dia = datetime.combine(hoy, datetime.max.time())
+            query = query.filter(RegistroAsistencia.fecha_hora <= fin_dia)
 
     registros = query.order_by(RegistroAsistencia.fecha_hora.desc()).all()
 
@@ -69,27 +76,22 @@ def obtener_incumplimientos_por_inspector(
             .first()
         )
 
-        # Convertir imagen a base64
         foto_base64 = None
         if evidencia and evidencia.foto_data:
             foto_base64 = base64.b64encode(evidencia.foto_data).decode("utf-8")
 
-        # Obtener información del trabajador y de la cámara
         tper = reg.trabajador.persona
         cam = reg.camara
 
-        # Obtener detecciones (clases detectadas por YOLO)
         clases_detectadas = []
         if evidencia and evidencia.detalle_fallo:
             clases_detectadas = [
                 c.strip() for c in evidencia.detalle_fallo.split(",") if c.strip()
             ]
 
-        # Obtener los EPP obligatorios de la zona
         zona = reg.camara.zona
         epps_zona = obtener_epp_humanos_por_zona(db, zona.id_Zona)
 
-        # Armamos la respuesta para el inspector
         resultados.append(
             IncumplimientoInspectorResponse(
                 trabajador=TrabajadorInfo(
@@ -110,8 +112,8 @@ def obtener_incumplimientos_por_inspector(
                     observaciones=evidencia.observaciones
                 ),
                 fecha_registro=reg.fecha_hora,
-                detecciones=clases_detectadas,  # NUEVO: detecciones detectadas
-                epps_zona=epps_zona  # NUEVO: EPPs de la zona
+                detecciones=clases_detectadas,  
+                epps_zona=epps_zona  
             )
         )
 
@@ -199,7 +201,7 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
         # 🔥 CLASES YOLO DETECTADAS
         clases_detectadas = []
         if evidencia and evidencia.detalle_fallo:
-            clases_detectadas = [
+            clases_detectadas = [   
                 c.strip() for c in evidencia.detalle_fallo.split(",") if c.strip()
             ]
 
