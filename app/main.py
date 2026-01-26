@@ -29,6 +29,7 @@ from app.modelos import evidencias_fallo
 from app.modelos import zona_epp
 from app.modelos import token_reset_modelo
 from app.modelos import fcm_token_modelo
+from app.logs.mongodb import MongoDB
 
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
@@ -156,6 +157,24 @@ def root():
 @app.on_event("startup")
 async def startup_event():
     """Se ejecuta cuando inicia la app"""
+    
+    # Inicializar Firebase
     NotificacionesFCMServicio.inicializar()
-    print('✅ App iniciada - Firebase listo para notificaciones')
+    print("✅ Firebase listo para notificaciones")
+
+    # Conectar a MongoDB
+    try:
+        MongoDB.get_client()
+        print("📦 MongoDB Atlas listo para uso")
+    except Exception as e:
+        print(f"❌ MongoDB no disponible: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    MongoDB.close_connection()
+    print("🔒 Conexión a MongoDB cerrada")
+
+
+
 

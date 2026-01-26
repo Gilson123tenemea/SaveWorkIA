@@ -1,8 +1,8 @@
 # app/servicios/inspector_servicio.py
 from sqlalchemy.orm import Session
 from datetime import date
-from fastapi import HTTPException, status
-import base64  # 👈 NUEVO
+from fastapi import HTTPException, status, BackgroundTasks
+import base64
 
 from app.modelos.persona import Persona
 from app.modelos.inspector import Inspector
@@ -15,6 +15,8 @@ from app.modelos.trabajador_zona import TrabajadorZona
 from app.modelos.trabajador import Trabajador
 from app.modelos.camara_modelo import Camara
 from app.modelos.empresa_modelo import Empresa
+from app.servicios.log_service import LogServicio
+from typing import Optional
 
 from app.Validaciones.validacion_usuario import (
     validar_cedula_ecuatoriana,
@@ -33,7 +35,7 @@ from app.Validaciones.validacion_usuario import (
 )
 
 
-def crear_inspector(db: Session, datos: InspectorCreate):
+def crear_inspector(db: Session, datos: InspectorCreate, background_tasks: BackgroundTasks):
 
     # ========================================================
     # 1️⃣ VALIDAR QUE LA CÉDULA SEA CORRECTA
@@ -51,6 +53,16 @@ def crear_inspector(db: Session, datos: InspectorCreate):
     # 3️⃣ SI EXISTE Y ESTÁ ACTIVA → NO PERMITIR DUPLICAR
     # ========================================================
     if persona_existente and persona_existente.borrado is True:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="inspector_servicio",
+            accion="crear_inspector",
+            error_message="Intento de crear inspector con cédula activa duplicada",
+            metadata={
+                "cedula": datos.persona.cedula,
+                "correo": datos.persona.correo
+            }
+        )
         raise HTTPException(
             status_code=400,
             detail="Ya existe un inspector activo con esta cédula"
@@ -110,6 +122,21 @@ def crear_inspector(db: Session, datos: InspectorCreate):
             db.add(nuevo_registro)
 
         db.commit()
+
+        # 📝 LOG: Inspector reactivado
+        background_tasks.add_task(
+            LogServicio.registrar_accion_negocio,
+            source="inspector_servicio",
+            accion="reactivar_inspector",
+            user_id=persona_existente.id_persona,
+            user_role="inspector",
+            estado="success",
+            mensaje=f"Inspector reactivado: {persona_existente.correo}",
+            metadata={
+                "cedula": datos.persona.cedula,
+                "id_supervisor": datos.id_supervisor_registro
+            }
+        )
 
         return {
             "mensaje": "Inspector reactivado correctamente",
@@ -174,6 +201,22 @@ def crear_inspector(db: Session, datos: InspectorCreate):
     db.commit()
     db.refresh(nuevo_registro)
 
+    # 📝 LOG: Inspector creado exitosamente
+    background_tasks.add_task(
+        LogServicio.registrar_accion_negocio,
+        source="inspector_servicio",
+        accion="crear_inspector",
+        user_id=nueva_persona.id_persona,
+        user_role="inspector",
+        estado="success",
+        mensaje=f"Inspector registrado: {nueva_persona.correo}",
+        metadata={
+            "cedula": datos.persona.cedula,
+            "id_supervisor": datos.id_supervisor_registro,
+            "frecuencia_visita": datos.frecuenciaVisita
+        }
+    )
+
     return {
         "mensaje": "Inspector creado correctamente",
         "id_inspector": nuevo_inspector.id_inspector,
@@ -233,13 +276,28 @@ def cedula_existe_activa(db: Session, cedula: str):
     return True  # No se puede usar
 
 
-def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
+def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate, background_tasks: BackgroundTasks):
     inspector = db.query(Inspector).filter(Inspector.id_inspector == id_inspector).first()
     if not inspector:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="inspector_servicio",
+            accion="editar_inspector",
+            error_message="Inspector no encontrado",
+            metadata={"id_inspector": id_inspector}
+        )
         raise HTTPException(status_code=404, detail="Inspector no encontrado")
 
     persona = db.query(Persona).filter(Persona.id_persona == inspector.id_persona_inspector).first()
     if not persona:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="inspector_servicio",
+            accion="editar_inspector",
+            error_message="Persona asociada no encontrada",
+            user_id=inspector.id_persona_inspector,
+            metadata={"id_inspector": id_inspector}
+        )
         raise HTTPException(status_code=404, detail="Persona asociada no encontrada")
 
     # --- VALIDAR PERSONA ---
@@ -250,6 +308,14 @@ def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
         Persona.id_persona != persona.id_persona
     ).first()
     if cedula_existente:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="inspector_servicio",
+            accion="editar_inspector",
+            error_message="Intento de cambiar cédula a una ya registrada",
+            user_id=inspector.id_persona_inspector,
+            metadata={"id_inspector": id_inspector, "cedula": datos.persona.cedula}
+        )
         raise HTTPException(status_code=400, detail="La cédula ya está registrada por otra persona")
 
     validar_nombre(datos.persona.nombre)
@@ -262,6 +328,14 @@ def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
         Persona.id_persona != persona.id_persona
     ).first()
     if correo_existente:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="inspector_servicio",
+            accion="editar_inspector",
+            error_message="Intento de cambiar correo a uno ya registrado",
+            user_id=inspector.id_persona_inspector,
+            metadata={"id_inspector": id_inspector, "correo_nuevo": datos.persona.correo}
+        )
         raise HTTPException(status_code=400, detail="El correo ya está registrado por otra persona")
 
     validar_direccion(datos.persona.direccion)
@@ -292,16 +366,39 @@ def editar_inspector(db: Session, id_inspector: int, datos: InspectorCreate):
 
     db.commit()
 
+    # 📝 LOG: Inspector actualizado
+    background_tasks.add_task(
+        LogServicio.registrar_accion_negocio,
+        source="inspector_servicio",
+        accion="editar_inspector",
+        user_id=persona.id_persona,
+        user_role="inspector",
+        estado="success",
+        mensaje=f"Inspector actualizado: {persona.correo}",
+        metadata={
+            "id_inspector": id_inspector,
+            "cedula": datos.persona.cedula,
+            "id_supervisor": datos.id_supervisor_registro
+        }
+    )
+
     return {"mensaje": "Inspector actualizado correctamente"}
 
 
-def eliminar_inspector(db: Session, id_inspector: int):
+def eliminar_inspector(db: Session, id_inspector: int, background_tasks: BackgroundTasks):
     inspector = db.query(Inspector).filter(
         Inspector.id_inspector == id_inspector,
         Inspector.borrado == True
     ).first()
 
     if not inspector:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="inspector_servicio",
+            accion="eliminar_inspector",
+            error_message="Inspector no encontrado o inactivo",
+            metadata={"id_inspector": id_inspector}
+        )
         raise HTTPException(status_code=404, detail="Inspector no encontrado o inactivo")
 
     asignacion_activa = db.query(InspectorZona).filter(
@@ -310,6 +407,14 @@ def eliminar_inspector(db: Session, id_inspector: int):
     ).first()
 
     if asignacion_activa:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="inspector_servicio",
+            accion="eliminar_inspector",
+            error_message="No se puede eliminar inspector con zonas asignadas",
+            user_id=inspector.id_persona_inspector,
+            metadata={"id_inspector": id_inspector}
+        )
         raise HTTPException(
             status_code=400,
             detail=(
@@ -335,18 +440,49 @@ def eliminar_inspector(db: Session, id_inspector: int):
 
     db.commit()
 
+    # 📝 LOG: Inspector eliminado
+    background_tasks.add_task(
+        LogServicio.registrar_accion_negocio,
+        source="inspector_servicio",
+        accion="eliminar_inspector",
+        user_id=inspector.id_persona_inspector,
+        user_role="inspector",
+        estado="success",
+        mensaje=f"Inspector eliminado: {persona.correo if persona else 'ID: ' + str(id_inspector)}",
+        metadata={"id_inspector": id_inspector}
+    )
+
     return {"mensaje": "Inspector eliminado (borrado lógico en 3 tablas)"}
 
-def login_inspector(db: Session, datos: LoginInspector):
+async def login_inspector(db: Session, datos: LoginInspector, ip_address: Optional[str] = None):
     persona = db.query(Persona).filter(
         Persona.correo == datos.correo,
         Persona.borrado == True
     ).first()
 
     if not persona or persona.rol != "inspector":
+        # 📝 LOG: Login fallido - correo no existe
+        await LogServicio.registrar_autenticacion(
+            source="inspector_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            ip_address=ip_address,
+            error="Correo no registrado o no es inspector"
+        )
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
     if not verificar_contrasena(datos.contrasena, persona.contrasena):
+        # 📝 LOG: Login fallido - contraseña incorrecta
+        await LogServicio.registrar_autenticacion(
+            source="inspector_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Contraseña incorrecta"
+        )
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
     inspector = db.query(Inspector).filter(
@@ -355,6 +491,16 @@ def login_inspector(db: Session, datos: LoginInspector):
     ).first()
 
     if not inspector:
+        # 📝 LOG: Login fallido - inspector no activo
+        await LogServicio.registrar_autenticacion(
+            source="inspector_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Inspector no activo"
+        )
         raise HTTPException(status_code=403, detail="Inspector no activo")
 
     # 🔥 1️⃣ Buscar asignación Inspector → Zona
@@ -364,6 +510,16 @@ def login_inspector(db: Session, datos: LoginInspector):
     ).first()
 
     if not asignacion:
+        # 📝 LOG: Login fallido - sin zonas asignadas
+        await LogServicio.registrar_autenticacion(
+            source="inspector_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Inspector sin zonas asignadas"
+        )
         raise HTTPException(
             status_code=404,
             detail="Inspector no tiene zonas asignadas"
@@ -376,6 +532,16 @@ def login_inspector(db: Session, datos: LoginInspector):
     ).first()
 
     if not zona:
+        # 📝 LOG: Login fallido - zona no encontrada
+        await LogServicio.registrar_autenticacion(
+            source="inspector_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Zona asignada no encontrada"
+        )
         raise HTTPException(
             status_code=404,
             detail="Zona asignada no encontrada"
@@ -388,10 +554,36 @@ def login_inspector(db: Session, datos: LoginInspector):
     ).first()
 
     if not empresa:
+        # 📝 LOG: Login fallido - empresa no encontrada
+        await LogServicio.registrar_autenticacion(
+            source="inspector_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Empresa no encontrada"
+        )
         raise HTTPException(
             status_code=404,
             detail="Empresa no encontrada"
         )
+
+    # 📝 LOG: Login exitoso
+    await LogServicio.registrar_autenticacion(
+        source="inspector_servicio",
+        accion="login_exitoso",
+        correo=datos.correo,
+        estado="success",
+        user_id=persona.id_persona,
+        ip_address=ip_address,
+        mensaje=f"Login exitoso para {datos.correo}",
+        metadata={
+            "id_inspector": inspector.id_inspector,
+            "id_empresa": empresa.id_Empresa,
+            "nombre": persona.nombre
+        }
+    )
 
     return {
         "mensaje": "Inicio de sesión exitoso",
@@ -537,12 +729,11 @@ def obtener_perfil_inspector(db: Session, id_inspector: int):
         "fotoBase64": foto_base64,
     }
 
-# Agregar al final de app/servicios/inspector_servicio.py
-
 def actualizar_perfil_inspector(
     db: Session,
     id_inspector: int,
-    datos
+    datos,
+    background_tasks: BackgroundTasks
 ):
     """
     ✏️ Actualizar perfil del inspector
@@ -581,6 +772,14 @@ def actualizar_perfil_inspector(
         ).first()
 
         if correo_existente:
+            background_tasks.add_task(
+                LogServicio.registrar_error,
+                source="inspector_servicio",
+                accion="actualizar_perfil",
+                error_message="Intento de cambiar correo a uno ya registrado",
+                user_id=inspector.id_persona_inspector,
+                metadata={"id_inspector": id_inspector, "correo_nuevo": datos.correo}
+            )
             raise HTTPException(
                 status_code=400,
                 detail="El correo ya está en uso por otra persona"
@@ -606,6 +805,18 @@ def actualizar_perfil_inspector(
     try:
         db.commit()
         db.refresh(persona)
+
+        # 📝 LOG: Perfil actualizado
+        background_tasks.add_task(
+            LogServicio.registrar_accion_negocio,
+            source="inspector_servicio",
+            accion="actualizar_perfil",
+            user_id=persona.id_persona,
+            user_role="inspector",
+            estado="success",
+            mensaje=f"Perfil actualizado: {persona.correo}",
+            metadata={"id_inspector": id_inspector}
+        )
 
         return {
             "mensaje": "Perfil actualizado correctamente",

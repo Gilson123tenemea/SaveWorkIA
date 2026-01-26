@@ -6,8 +6,6 @@ from fastapi import HTTPException
 from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contrasena
 from sqlalchemy.orm import joinedload
 from app.modelos.trabajador_zona import TrabajadorZona
-
-from sqlalchemy.orm import Session, joinedload
 from app.modelos.zona_modelo import Zona
 from app.modelos.camara_modelo import Camara
 from app.modelos.inspector_zona import InspectorZona
@@ -29,8 +27,11 @@ from app.Validaciones.validacion_usuario import (
     validar_estado_trabajador,
     validar_codigo_trabajador,
     validar_correo_formato
-
 )
+
+# Importar servicio de logs
+from app.servicios.log_service import LogServicio
+
 
 def codigo_existe_activo(db: Session, codigo: str, id_empresa: int):
     trabajador = db.query(Trabajador).filter(
@@ -38,21 +39,19 @@ def codigo_existe_activo(db: Session, codigo: str, id_empresa: int):
         Trabajador.id_empresa == id_empresa,
         Trabajador.borrado == True
     ).first()
-
     return trabajador is not None
 
 
 def cedula_existe_activa(db: Session, cedula: str):
     persona = db.query(Persona).filter(Persona.cedula == cedula).first()
-
     if not persona:
         return False  
     if persona.borrado is False:
         return False  
     return True  
 
-def correo_existe_activo(db: Session, correo: str) -> bool:
 
+def correo_existe_activo(db: Session, correo: str) -> bool:
     persona = db.query(Persona).filter(
         Persona.correo == correo,
         Persona.borrado == True  
@@ -60,38 +59,118 @@ def correo_existe_activo(db: Session, correo: str) -> bool:
     return persona is not None
 
 
-def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
+async def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate, ip_address: str = None):
+    try:
+        # Validar formato de cédula
+        validar_cedula_ecuatoriana(data.persona.cedula)
 
-    # =====================================================
-    # 1️⃣ VALIDAR FORMATO DE CÉDULA
-    # =====================================================
-    validar_cedula_ecuatoriana(data.persona.cedula)
+        # Buscar persona por cédula
+        persona_existente = db.query(Persona).filter(
+            Persona.cedula == data.persona.cedula
+        ).first()
 
-    # Buscar persona por cédula
-    persona_existente = db.query(Persona).filter(
-        Persona.cedula == data.persona.cedula
-    ).first()
+        # CASO A: PERSONA EXISTE Y ESTÁ ACTIVA
+        if persona_existente and persona_existente.borrado is True:
+            await LogServicio.registrar_accion_negocio(
+                source="trabajador_servicio.crear_trabajador_completo",
+                accion="intento_crear_trabajador_duplicado",
+                estado="failed",
+                mensaje=f"Intento de crear trabajador con cédula duplicada: {data.persona.cedula}",
+                ip_address=ip_address,
+                metadata={
+                    "cedula": data.persona.cedula,
+                    "codigo_trabajador": data.trabajador.codigo_trabajador,
+                    "id_empresa": data.trabajador.id_empresa
+                }
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Ya existe un trabajador activo con esta cédula"
+            )
 
-    # =====================================================
-    # 2️⃣ CASO A: PERSONA EXISTE Y ESTÁ ACTIVA (borrado=True)
-    # → NO SE PUEDE CREAR DE NUEVO
-    # =====================================================
-    if persona_existente and persona_existente.borrado is True:
-        raise HTTPException(
-            status_code=400,
-            detail="Ya existe un trabajador activo con esta cédula"
-        )
+        # CASO B: PERSONA EXISTE PERO ESTÁ INACTIVA - REACTIVACIÓN
+        if persona_existente and persona_existente.borrado is False:
+            persona = persona_existente
 
-    # =====================================================
-    # 3️⃣ CASO B: PERSONA EXISTE PERO ESTÁ INACTIVA (borrado=False)
-    # → SE REACTIVA Y SE ACTUALIZAN SUS DATOS
-    # =====================================================
-    if persona_existente and persona_existente.borrado is False:
+            # Validaciones completas
+            validar_correo_formato(data.persona.correo)
+            validar_nombre(data.persona.nombre)
+            validar_apellido(data.persona.apellido)
+            validar_telefono(data.persona.telefono)
+            validar_direccion(data.persona.direccion)
+            validar_genero(data.persona.genero)
+            validar_fecha_nacimiento(data.persona.fecha_nacimiento)
+            validar_contrasena(data.persona.contrasena)
+            validar_cargo(data.trabajador.cargo)
+            validar_implementos(data.trabajador.implementos_requeridos)
+            validar_estado_trabajador(data.trabajador.estado)
+            validar_codigo_trabajador(data.trabajador.codigo_trabajador)
+            validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
 
-        persona = persona_existente
+            # Reactivar persona
+            persona.nombre = data.persona.nombre
+            persona.apellido = data.persona.apellido
+            persona.telefono = data.persona.telefono
+            persona.correo = data.persona.correo
+            persona.direccion = data.persona.direccion
+            persona.genero = data.persona.genero
+            persona.fecha_nacimiento = data.persona.fecha_nacimiento
+            persona.contrasena = encriptar_contrasena(data.persona.contrasena)
+            persona.rol = "trabajador"
+            persona.borrado = True
 
-        # --- Validaciones completas ---
-        validar_correo_formato(data.persona.correo)
+            # Buscar trabajador asociado
+            trabajador = db.query(Trabajador).filter(
+                Trabajador.id_persona_trabajador == persona.id_persona
+            ).first()
+
+            if trabajador:
+                trabajador.cargo = data.trabajador.cargo
+                trabajador.implementos_requeridos = data.trabajador.implementos_requeridos
+                trabajador.estado = data.trabajador.estado
+                trabajador.codigo_trabajador = data.trabajador.codigo_trabajador
+                trabajador.id_empresa = data.trabajador.id_empresa
+                trabajador.id_supervisor_trabajador = data.trabajador.id_supervisor_trabajador
+                trabajador.borrado = True
+            else:
+                trabajador = Trabajador(
+                    cargo=data.trabajador.cargo,
+                    implementos_requeridos=data.trabajador.implementos_requeridos,
+                    estado=data.trabajador.estado,
+                    codigo_trabajador=data.trabajador.codigo_trabajador,
+                    id_empresa=data.trabajador.id_empresa,
+                    id_supervisor_trabajador=data.trabajador.id_supervisor_trabajador,
+                    id_persona_trabajador=persona.id_persona,
+                    borrado=True
+                )
+                db.add(trabajador)
+
+            db.commit()
+            db.refresh(trabajador)
+
+            # Log de reactivación exitosa
+            await LogServicio.registrar_accion_negocio(
+                source="trabajador_servicio.crear_trabajador_completo",
+                accion="reactivar_trabajador",
+                user_id=trabajador.id_trabajador,
+                user_role="trabajador",
+                estado="success",
+                mensaje=f"Trabajador reactivado: {persona.nombre} {persona.apellido}",
+                ip_address=ip_address,
+                metadata={
+                    "id_trabajador": trabajador.id_trabajador,
+                    "cedula": persona.cedula,
+                    "correo": persona.correo,
+                    "codigo_trabajador": trabajador.codigo_trabajador,
+                    "id_empresa": trabajador.id_empresa
+                }
+            )
+
+            return trabajador
+
+        # CASO C: PERSONA NO EXISTE - CREAR NUEVO
+        validar_cedula_unica(db, data.persona.cedula)
+        validar_correo_unico(db, data.persona.correo)
         validar_nombre(data.persona.nombre)
         validar_apellido(data.persona.apellido)
         validar_telefono(data.persona.telefono)
@@ -99,122 +178,88 @@ def crear_trabajador_completo(db: Session, data: TrabajadorPersonaCreate):
         validar_genero(data.persona.genero)
         validar_fecha_nacimiento(data.persona.fecha_nacimiento)
         validar_contrasena(data.persona.contrasena)
-
         validar_cargo(data.trabajador.cargo)
         validar_implementos(data.trabajador.implementos_requeridos)
         validar_estado_trabajador(data.trabajador.estado)
         validar_codigo_trabajador(data.trabajador.codigo_trabajador)
         validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
 
-        # --- Reactivar persona ---
-        persona.nombre = data.persona.nombre
-        persona.apellido = data.persona.apellido
-        persona.telefono = data.persona.telefono
-        persona.correo = data.persona.correo
-        persona.direccion = data.persona.direccion
-        persona.genero = data.persona.genero
-        persona.fecha_nacimiento = data.persona.fecha_nacimiento
-        persona.contrasena = encriptar_contrasena(data.persona.contrasena)
-        persona.rol = "trabajador"
-        persona.borrado = True  # <-- REACTIVADO
+        # Crear persona nueva
+        persona = Persona(
+            cedula=data.persona.cedula,
+            nombre=data.persona.nombre,
+            apellido=data.persona.apellido,
+            telefono=data.persona.telefono,
+            correo=data.persona.correo,
+            direccion=data.persona.direccion,
+            genero=data.persona.genero,
+            fecha_nacimiento=data.persona.fecha_nacimiento,
+            contrasena=encriptar_contrasena(data.persona.contrasena),
+            rol="trabajador",
+            borrado=True
+        )
+        db.add(persona)
+        db.commit()
+        db.refresh(persona)
 
-        # Buscar trabajador asociado
-        trabajador = db.query(Trabajador).filter(
-            Trabajador.id_persona_trabajador == persona.id_persona
-        ).first()
+        # Crear trabajador nuevo
+        trabajador = Trabajador(
+            cargo=data.trabajador.cargo,
+            implementos_requeridos=data.trabajador.implementos_requeridos,
+            estado=data.trabajador.estado,
+            codigo_trabajador=data.trabajador.codigo_trabajador,
+            id_empresa=data.trabajador.id_empresa,
+            id_supervisor_trabajador=data.trabajador.id_supervisor_trabajador,
+            id_persona_trabajador=persona.id_persona,
+            borrado=True
+        )
 
-        # Si trabajador existía → reactivarlo y actualizarlo
-        if trabajador:
-            trabajador.cargo = data.trabajador.cargo
-            trabajador.implementos_requeridos = data.trabajador.implementos_requeridos
-            trabajador.estado = data.trabajador.estado
-            trabajador.codigo_trabajador = data.trabajador.codigo_trabajador
-            trabajador.id_empresa = data.trabajador.id_empresa
-            trabajador.id_supervisor_trabajador = data.trabajador.id_supervisor_trabajador
-            trabajador.borrado = True  # <-- REACTIVADO
-
-        else:
-            # Si NO existía → crear nuevo trabajador con misma persona
-            trabajador = Trabajador(
-                cargo=data.trabajador.cargo,
-                implementos_requeridos=data.trabajador.implementos_requeridos,
-                estado=data.trabajador.estado,
-                codigo_trabajador=data.trabajador.codigo_trabajador,
-                id_empresa=data.trabajador.id_empresa,
-                id_supervisor_trabajador=data.trabajador.id_supervisor_trabajador,
-                id_persona_trabajador=persona.id_persona,
-                borrado=True
-            )
-            db.add(trabajador)
-
+        db.add(trabajador)
         db.commit()
         db.refresh(trabajador)
 
+        # Log de creación exitosa
+        await LogServicio.registrar_accion_negocio(
+            source="trabajador_servicio.crear_trabajador_completo",
+            accion="crear_trabajador",
+            user_id=trabajador.id_trabajador,
+            user_role="trabajador",
+            estado="success",
+            mensaje=f"Nuevo trabajador creado: {persona.nombre} {persona.apellido}",
+            ip_address=ip_address,
+            metadata={
+                "id_trabajador": trabajador.id_trabajador,
+                "cedula": persona.cedula,
+                "correo": persona.correo,
+                "codigo_trabajador": trabajador.codigo_trabajador,
+                "cargo": trabajador.cargo,
+                "id_empresa": trabajador.id_empresa,
+                "id_supervisor": trabajador.id_supervisor_trabajador
+            }
+        )
+
         return trabajador
-           
 
-    # =====================================================
-    # 4️⃣ CASO C: PERSONA NO EXISTE → CREAR REGISTRO NUEVO
-    # =====================================================
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log de error
+        await LogServicio.registrar_error(
+            source="trabajador_servicio.crear_trabajador_completo",
+            accion="crear_trabajador",
+            error_message=str(e),
+            ip_address=ip_address,
+            metadata={
+                "cedula": data.persona.cedula if data.persona else None,
+                "correo": data.persona.correo if data.persona else None
+            }
+        )
+        raise
 
-    # Validaciones persona NUEVA
-    validar_cedula_unica(db, data.persona.cedula)
-    validar_correo_unico(db, data.persona.correo)
-    validar_nombre(data.persona.nombre)
-    validar_apellido(data.persona.apellido)
-    validar_telefono(data.persona.telefono)
-    validar_direccion(data.persona.direccion)
-    validar_genero(data.persona.genero)
-    validar_fecha_nacimiento(data.persona.fecha_nacimiento)
-    validar_contrasena(data.persona.contrasena)
 
-    # Validaciones trabajador NUEVO
-    validar_cargo(data.trabajador.cargo)
-    validar_implementos(data.trabajador.implementos_requeridos)
-    validar_estado_trabajador(data.trabajador.estado)
-    validar_codigo_trabajador(data.trabajador.codigo_trabajador)
-    validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
-
-    # Crear persona nueva
-    persona = Persona(
-        cedula=data.persona.cedula,
-        nombre=data.persona.nombre,
-        apellido=data.persona.apellido,
-        telefono=data.persona.telefono,
-        correo=data.persona.correo,
-        direccion=data.persona.direccion,
-        genero=data.persona.genero,
-        fecha_nacimiento=data.persona.fecha_nacimiento,
-        contrasena=encriptar_contrasena(data.persona.contrasena),
-        rol="trabajador",
-        borrado=True
-    )
-    db.add(persona)
-    db.commit()
-    db.refresh(persona)
-
-    # Crear trabajador nuevo
-    trabajador = Trabajador(
-        cargo=data.trabajador.cargo,
-        implementos_requeridos=data.trabajador.implementos_requeridos,
-        estado=data.trabajador.estado,
-        codigo_trabajador=data.trabajador.codigo_trabajador,
-        id_empresa=data.trabajador.id_empresa,
-        id_supervisor_trabajador=data.trabajador.id_supervisor_trabajador,
-        id_persona_trabajador=persona.id_persona,
-        borrado=True
-    )
-
-    db.add(trabajador)
-    db.commit()
-    db.refresh(trabajador)
-
-    return trabajador
-# -----------------------------------------------
-# LISTAR TODOS LOS TRABAJADORES
-# -----------------------------------------------
 def obtener_trabajadores_completos(db: Session):
     return db.query(Trabajador).join(Persona).all()
+
 
 def validar_codigo_unico(db: Session, codigo: str, id_empresa: int):
     existe = db.query(Trabajador).filter(
@@ -229,9 +274,7 @@ def validar_codigo_unico(db: Session, codigo: str, id_empresa: int):
             detail="Ya existe un trabajador activo con este código en esta empresa"
         )
 
-# -----------------------------------------------
-# OBTENER TRABAJADOR POR ID
-# -----------------------------------------------
+
 def obtener_trabajador_completo(db: Session, id_trabajador: int):
     return (
         db.query(Trabajador)
@@ -241,162 +284,197 @@ def obtener_trabajador_completo(db: Session, id_trabajador: int):
     )
 
 
-# -----------------------------------------------
-# EDITAR PERSONA + TRABAJADOR
-# -----------------------------------------------
-def editar_trabajador_completo(db: Session, id_trabajador: int, data: TrabajadorPersonaCreate):
+async def editar_trabajador_completo(db: Session, id_trabajador: int, data: TrabajadorPersonaCreate, ip_address: str = None):
+    try:
+        # Obtener trabajador + persona
+        trabajador = db.query(Trabajador).filter(
+            Trabajador.id_trabajador == id_trabajador,
+            Trabajador.borrado == True
+        ).first()
 
-    # ------------------------------
-    # 1️⃣ Obtener trabajador + persona
-    # ------------------------------
-    trabajador = db.query(Trabajador).filter(
-        Trabajador.id_trabajador == id_trabajador,
-        Trabajador.borrado == True
-    ).first()
+        if not trabajador:
+            raise HTTPException(status_code=404, detail="Trabajador no encontrado")
 
-    if not trabajador:
-        raise HTTPException(status_code=404, detail="Trabajador no encontrado")
+        persona = db.query(Persona).filter(
+            Persona.id_persona == trabajador.id_persona_trabajador,
+            Persona.borrado == True
+        ).first()
 
-    persona = db.query(Persona).filter(
-        Persona.id_persona == trabajador.id_persona_trabajador,
-        Persona.borrado == True
-    ).first()
+        if not persona:
+            raise HTTPException(status_code=404, detail="Persona asociada no encontrada")
 
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona asociada no encontrada")
+        # Guardar datos anteriores para el log
+        datos_anteriores = {
+            "nombre": persona.nombre,
+            "apellido": persona.apellido,
+            "correo": persona.correo,
+            "cargo": trabajador.cargo,
+            "codigo_trabajador": trabajador.codigo_trabajador
+        }
 
-    # ------------------------------
-    # 2️⃣ VALIDACIONES PERSONA
-    # ------------------------------
+        # VALIDACIONES PERSONA
+        validar_nombre(data.persona.nombre)
+        validar_apellido(data.persona.apellido)
+        validar_telefono(data.persona.telefono)
+        validar_direccion(data.persona.direccion)
+        validar_genero(data.persona.genero)
+        validar_fecha_nacimiento(data.persona.fecha_nacimiento)
 
-    # Cedula NO se cambia → No validar unicidad
-    validar_nombre(data.persona.nombre)
-    validar_apellido(data.persona.apellido)
-    validar_telefono(data.persona.telefono)
-    validar_direccion(data.persona.direccion)
-    validar_genero(data.persona.genero)
-    validar_fecha_nacimiento(data.persona.fecha_nacimiento)
+        if data.persona.correo != persona.correo:
+            validar_correo_formato(data.persona.correo)
+            validar_correo_unico(db, data.persona.correo)
 
-    # Validar correo único si cambió
-    if data.persona.correo != persona.correo:
-        validar_correo_formato(data.persona.correo)
-        validar_correo_unico(db, data.persona.correo)
+        if data.persona.contrasena:
+            persona.contrasena = encriptar_contrasena(data.persona.contrasena)
 
-    # Validar contraseña solo si viene una nueva
-    if data.persona.contrasena:
-        persona.contrasena = encriptar_contrasena(data.persona.contrasena)
+        # VALIDACIONES TRABAJADOR
+        validar_cargo(data.trabajador.cargo)
+        validar_implementos(data.trabajador.implementos_requeridos)
+        validar_estado_trabajador(data.trabajador.estado)
 
-    # ------------------------------
-    # 3️⃣ VALIDACIONES TRABAJADOR
-    # ------------------------------
-    validar_cargo(data.trabajador.cargo)
-    validar_implementos(data.trabajador.implementos_requeridos)
-    validar_estado_trabajador(data.trabajador.estado)
+        if data.trabajador.codigo_trabajador != trabajador.codigo_trabajador:
+            validar_codigo_trabajador(data.trabajador.codigo_trabajador)
+            validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
 
-    # Validar código EMP-XXX solo si cambió
-    if data.trabajador.codigo_trabajador != trabajador.codigo_trabajador:
-        validar_codigo_trabajador(data.trabajador.codigo_trabajador)
-        validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
+        if data.trabajador.id_empresa != trabajador.id_empresa:
+            validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
 
-    # Si cambió de empresa, validar que el código sea único en la nueva empresa
-    if data.trabajador.id_empresa != trabajador.id_empresa:
-        validar_codigo_unico(db, data.trabajador.codigo_trabajador, data.trabajador.id_empresa)
+        # Actualizar PERSONA
+        persona.nombre = data.persona.nombre
+        persona.apellido = data.persona.apellido
+        persona.telefono = data.persona.telefono
+        persona.correo = data.persona.correo
+        persona.direccion = data.persona.direccion
+        persona.genero = data.persona.genero
+        persona.fecha_nacimiento = data.persona.fecha_nacimiento
 
-    # ------------------------------
-    # 4️⃣ Actualizar PERSONA
-    # ------------------------------
-    persona.nombre = data.persona.nombre
-    persona.apellido = data.persona.apellido
-    persona.telefono = data.persona.telefono
-    persona.correo = data.persona.correo
-    persona.direccion = data.persona.direccion
-    persona.genero = data.persona.genero
-    persona.fecha_nacimiento = data.persona.fecha_nacimiento
+        # Actualizar TRABAJADOR
+        trabajador.cargo = data.trabajador.cargo
+        trabajador.implementos_requeridos = data.trabajador.implementos_requeridos
+        trabajador.estado = data.trabajador.estado
+        trabajador.codigo_trabajador = data.trabajador.codigo_trabajador
 
-    # ------------------------------
-    # 5️⃣ Actualizar TRABAJADOR
-    # ------------------------------
-    trabajador.cargo = data.trabajador.cargo
-    trabajador.implementos_requeridos = data.trabajador.implementos_requeridos
-    trabajador.estado = data.trabajador.estado
-    trabajador.codigo_trabajador = data.trabajador.codigo_trabajador
+        db.commit()
+        db.refresh(trabajador)
 
-    db.commit()
-    db.refresh(trabajador)
-
-    return trabajador
-
-
-
-# -----------------------------------------------
-# BORRADO LÓGICO
-# -----------------------------------------------
-def borrado_logico_trabajador(db: Session, id_trabajador: int):
-
-    trabajador = db.query(Trabajador).filter(
-        Trabajador.id_trabajador == id_trabajador
-    ).first()
-
-    if not trabajador:
-        raise HTTPException(
-            status_code=404,
-            detail="Trabajador no encontrado"
+        # Log de edición exitosa
+        await LogServicio.registrar_accion_negocio(
+            source="trabajador_servicio.editar_trabajador_completo",
+            accion="editar_trabajador",
+            user_id=trabajador.id_trabajador,
+            user_role="trabajador",
+            estado="success",
+            mensaje=f"Trabajador actualizado: {persona.nombre} {persona.apellido}",
+            ip_address=ip_address,
+            metadata={
+                "id_trabajador": trabajador.id_trabajador,
+                "cedula": persona.cedula,
+                "correo_nuevo": persona.correo,
+                "datos_anteriores": datos_anteriores,
+                "datos_nuevos": {
+                    "nombre": persona.nombre,
+                    "apellido": persona.apellido,
+                    "correo": persona.correo,
+                    "cargo": trabajador.cargo,
+                    "codigo_trabajador": trabajador.codigo_trabajador
+                }
+            }
         )
 
-    asignaciones = db.query(TrabajadorZona).filter(
-        TrabajadorZona.id_trabajador_trabajadorzona == id_trabajador,
-        TrabajadorZona.borrado == True
-    ).count()
+        return trabajador
 
-    if asignaciones > 0:
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede eliminar el trabajador porque tiene zonas asignadas. "
-                   "Debe eliminar o reasignar esas zonas primero."
+    except HTTPException:
+        raise
+    except Exception as e:
+        await LogServicio.registrar_error(
+            source="trabajador_servicio.editar_trabajador_completo",
+            accion="editar_trabajador",
+            error_message=str(e),
+            user_id=id_trabajador,
+            ip_address=ip_address
+        )
+        raise
+
+
+async def borrado_logico_trabajador(db: Session, id_trabajador: int, ip_address: str = None):
+    try:
+        trabajador = db.query(Trabajador).filter(
+            Trabajador.id_trabajador == id_trabajador
+        ).first()
+
+        if not trabajador:
+            raise HTTPException(
+                status_code=404,
+                detail="Trabajador no encontrado"
+            )
+
+        asignaciones = db.query(TrabajadorZona).filter(
+            TrabajadorZona.id_trabajador_trabajadorzona == id_trabajador,
+            TrabajadorZona.borrado == True
+        ).count()
+
+        if asignaciones > 0:
+            await LogServicio.registrar_accion_negocio(
+                source="trabajador_servicio.borrado_logico_trabajador",
+                accion="intento_eliminar_trabajador_con_zonas",
+                user_id=id_trabajador,
+                estado="failed",
+                mensaje=f"Intento de eliminar trabajador con {asignaciones} zonas asignadas",
+                ip_address=ip_address,
+                metadata={
+                    "id_trabajador": id_trabajador,
+                    "zonas_asignadas": asignaciones
+                }
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede eliminar el trabajador porque tiene zonas asignadas. "
+                       "Debe eliminar o reasignar esas zonas primero."
+            )
+
+        # Obtener datos antes de eliminar
+        persona = db.query(Persona).filter(
+            Persona.id_persona == trabajador.id_persona_trabajador
+        ).first()
+
+        trabajador.borrado = False
+        if persona:
+            persona.borrado = False
+
+        db.commit()
+
+        # Log de eliminación exitosa
+        await LogServicio.registrar_accion_negocio(
+            source="trabajador_servicio.borrado_logico_trabajador",
+            accion="eliminar_trabajador",
+            user_id=id_trabajador,
+            user_role="trabajador",
+            estado="success",
+            mensaje=f"Trabajador eliminado: {persona.nombre if persona else 'N/A'} {persona.apellido if persona else 'N/A'}",
+            ip_address=ip_address,
+            metadata={
+                "id_trabajador": id_trabajador,
+                "cedula": persona.cedula if persona else None,
+                "correo": persona.correo if persona else None,
+                "codigo_trabajador": trabajador.codigo_trabajador
+            }
         )
 
-    trabajador.borrado = False
+        return {"mensaje": "Trabajador eliminado correctamente"}
 
-    persona = db.query(Persona).filter(
-        Persona.id_persona == trabajador.id_persona_trabajador
-    ).first()
+    except HTTPException:
+        raise
+    except Exception as e:
+        await LogServicio.registrar_error(
+            source="trabajador_servicio.borrado_logico_trabajador",
+            accion="eliminar_trabajador",
+            error_message=str(e),
+            user_id=id_trabajador,
+            ip_address=ip_address
+        )
+        raise
 
-    if persona:
-        persona.borrado = False
 
-    db.commit()
-
-    return {"mensaje": "Trabajador eliminado correctamente"}
-
-def cedula_existe_activa(db: Session, cedula: str):
-    persona = db.query(Persona).filter(Persona.cedula == cedula).first()
-
-    if not persona:
-        return False  # No existe → libre para usar
-
-    # Existe pero está inactiva (borrado = False)
-    if persona.borrado is False:
-        return False  # Se puede volver a usar
-
-    # Existe y está activa (borrado = True)
-    return True  # No se puede usar
-
-def correo_existe_activo(db: Session, correo: str):
-    persona = db.query(Persona).filter(Persona.correo == correo).first()
-
-    if not persona:
-        return False  # No existe → libre para usar
-
-    # Existe pero está INACTIVA (borrado=False) → se puede usar
-    if persona.borrado is False:
-        return False
-
-    # Existe y está ACTIVA (borrado=True) → no se puede usar
-    return True
-
-# ---------------------------------------------------------
-# LISTAR TRABAJADORES POR SUPERVISOR
-# ---------------------------------------------------------
 def obtener_trabajadores_por_supervisor(db: Session, id_supervisor: int):
     trabajadores = (
         db.query(Trabajador)
@@ -409,58 +487,45 @@ def obtener_trabajadores_por_supervisor(db: Session, id_supervisor: int):
     )
     return trabajadores
 
-# ---------------------------------------------------------
-# LISTAR TRABAJADORES POR SUPERVISOR **NO ASIGNADOS A ZONA**
-# ---------------------------------------------------------
+
 def obtener_trabajadores_no_asignados(db: Session, id_supervisor: int):
-    """
-    Obtiene los trabajadores de un supervisor que:
-    - NO están asignados a ninguna zona
-    - Están ACTIVOS (estado=True)
-    - NO están borrados (borrado=False)
-    """
-    
-    # Subconsulta → trabajadores YA asignados a zona
     subquery_asignados = (
         db.query(TrabajadorZona.id_trabajador_trabajadorzona)
         .filter(TrabajadorZona.borrado == True)
         .subquery()
     )
 
-    # Consulta principal → trabajadores que cumplen los filtros
     trabajadores = (
         db.query(Trabajador)
         .options(joinedload(Trabajador.persona))
         .filter(
             Trabajador.id_supervisor_trabajador == id_supervisor,
-            Trabajador.estado == True,              # ACTIVOS
-            Trabajador.borrado == True,             # NO BORRADOS
-            ~Trabajador.id_trabajador.in_(subquery_asignados)  # NO ASIGNADOS
+            Trabajador.estado == True,
+            Trabajador.borrado == True,
+            ~Trabajador.id_trabajador.in_(subquery_asignados)
         )
         .all()
     )
 
     return trabajadores
 
+
 def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: int):
-    # 1️⃣ Buscar trabajador por código
     trabajador = db.query(Trabajador).filter(
         Trabajador.codigo_trabajador == codigo,
-        Trabajador.id_empresa == id_empresa,  # ← FILTRO DESDE EL INICIO
+        Trabajador.id_empresa == id_empresa,
         Trabajador.borrado == True
     ).first()
 
     if not trabajador:
        raise HTTPException(404, f"No existe trabajador con código {codigo} en esta empresa")
 
-    # 2️⃣ Validar si pertenece a la empresa enviada del front
     if trabajador.id_empresa != id_empresa:
         raise HTTPException(
             status_code=400,
             detail=f"El trabajador {codigo} no pertenece a esta empresa"
         )
 
-    # 3️⃣ Obtener la zona a la que está asignado el trabajador
     asignacion = db.query(TrabajadorZona).filter(
         TrabajadorZona.id_trabajador_trabajadorzona == trabajador.id_trabajador,
         TrabajadorZona.borrado == True
@@ -471,7 +536,6 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
 
     id_zona = asignacion.id_zona_trabajadorzona
 
-    # 4️⃣ Obtener la cámara única de esa zona
     camara = db.query(Camara).filter(
         Camara.id_zona == id_zona,
         Camara.borrado == True
@@ -480,7 +544,6 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
     if not camara:
         raise HTTPException(status_code=404, detail="No existe cámara activa en la zona asignada")
 
-    # 5️⃣ Buscar el inspector asignado a esta zona
     inspector_zona = db.query(InspectorZona).filter(
         InspectorZona.id_zona_inspectorzona == id_zona,
         InspectorZona.borrado == True
@@ -504,7 +567,6 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
                 "id_persona": inspector.id_persona_inspector
             }
 
-    # 6️⃣ Construimos el JSON final
     return {
         "id_trabajador": trabajador.id_trabajador,
         "cargo": trabajador.cargo,
@@ -515,9 +577,7 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
         "id_supervisor_trabajador": trabajador.id_supervisor_trabajador,
         "fecharegistro": trabajador.fecharegistro,
         "id_zona": id_zona,
-
-        "id_inspector": id_inspector,  # 👈 nuevo campo agregado
-
+        "id_inspector": id_inspector,
         "camara": {
             "id_camara": camara.id_camara,
             "codigo": camara.codigo,
@@ -527,7 +587,6 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
             "ultimaTransmision": camara.ultimaTransmision,
             "ultima_revision": camara.ultima_revision
         },
-
         "persona": {
             "id_persona": trabajador.persona.id_persona,
             "cedula": trabajador.persona.cedula,
@@ -539,47 +598,123 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
             "genero": trabajador.persona.genero,
             "fecha_nacimiento": trabajador.persona.fecha_nacimiento
         },
-
-        "inspector": inspector_data  # 👈 objeto opcional por si quieres usar más tarde en el front
+        "inspector": inspector_data
     }
 
 
-def login_trabajador(db: Session, correo: str, contrasena: str):
+async def login_trabajador(db: Session, correo: str, contrasena: str, ip_address: str = None):
+    try:
+        # Log de intento de login
+        await LogServicio.registrar_autenticacion(
+            source="trabajador_servicio.login_trabajador",
+            accion="login_intento",
+            correo=correo,
+            estado="pending",
+            ip_address=ip_address,
+            mensaje=f"Intento de inicio de sesión para: {correo}"
+        )
 
-    # 1️⃣ Buscar persona por correo
-    persona = db.query(Persona).filter(
-        Persona.correo == correo,
-        Persona.borrado == True
-    ).first()
+        # Buscar persona por correo
+        persona = db.query(Persona).filter(
+            Persona.correo == correo,
+            Persona.borrado == True
+        ).first()
 
-    if not persona:
-        raise HTTPException(status_code=404, detail="Correo no encontrado")
+        if not persona:
+            await LogServicio.registrar_autenticacion(
+                source="trabajador_servicio.login_trabajador",
+                accion="login_fallido",
+                correo=correo,
+                estado="failed",
+                ip_address=ip_address,
+                mensaje="Correo no encontrado",
+                error="Usuario no existe"
+            )
+            raise HTTPException(status_code=404, detail="Correo no encontrado")
 
-    # 2️⃣ Validar rol
-    if persona.rol != "trabajador":
-        raise HTTPException(status_code=400, detail="El usuario no es trabajador")
+        # Validar rol
+        if persona.rol != "trabajador":
+            await LogServicio.registrar_autenticacion(
+                source="trabajador_servicio.login_trabajador",
+                accion="login_fallido",
+                correo=correo,
+                estado="failed",
+                ip_address=ip_address,
+                user_id=persona.id_persona,
+                mensaje="Intento de login con rol incorrecto",
+                error=f"Rol esperado: trabajador, rol actual: {persona.rol}"
+            )
+            raise HTTPException(status_code=400, detail="El usuario no es trabajador")
 
-    # 3️⃣ Validar contraseña
-    if not verificar_contrasena(contrasena, persona.contrasena):
-        raise HTTPException(status_code=400, detail="Contraseña incorrecta")
+        # Validar contraseña
+        if not verificar_contrasena(contrasena, persona.contrasena):
+            await LogServicio.registrar_autenticacion(
+                source="trabajador_servicio.login_trabajador",
+                accion="login_fallido",
+                correo=correo,
+                estado="failed",
+                ip_address=ip_address,
+                user_id=persona.id_persona,
+                mensaje="Contraseña incorrecta",
+                error="Credenciales inválidas"
+            )
+            raise HTTPException(status_code=400, detail="Contraseña incorrecta")
 
-    # 4️⃣ Buscar datos del trabajador en su tabla
-    trabajador = db.query(Trabajador).filter(
-        Trabajador.id_persona_trabajador == persona.id_persona,
-        Trabajador.borrado == True
-    ).first()
+        # Buscar datos del trabajador
+        trabajador = db.query(Trabajador).filter(
+            Trabajador.id_persona_trabajador == persona.id_persona,
+            Trabajador.borrado == True
+        ).first()
 
-    if not trabajador:
-        raise HTTPException(status_code=404, detail="No existe registro del trabajador")
+        if not trabajador:
+            await LogServicio.registrar_autenticacion(
+                source="trabajador_servicio.login_trabajador",
+                accion="login_fallido",
+                correo=correo,
+                estado="failed",
+                ip_address=ip_address,
+                user_id=persona.id_persona,
+                mensaje="Registro de trabajador no encontrado",
+                error="No existe registro del trabajador"
+            )
+            raise HTTPException(status_code=404, detail="No existe registro del trabajador")
 
-    # 5️⃣ Construir respuesta final
-    return {
-        "mensaje": "Inicio de sesión exitoso",
-        "id_trabajador": trabajador.id_trabajador,
-        "id_persona": persona.id_persona, 
-        "id_supervisor": trabajador.id_supervisor_trabajador,
-        "id_empresa_trabajador": trabajador.id_empresa,
-        "nombre": persona.nombre,
-        "correo": persona.correo,
-        "rol": persona.rol
-    }
+        # Log de login exitoso
+        await LogServicio.registrar_autenticacion(
+            source="trabajador_servicio.login_trabajador",
+            accion="login_exitoso",
+            correo=correo,
+            estado="success",
+            ip_address=ip_address,
+            user_id=trabajador.id_trabajador,
+            mensaje=f"Inicio de sesión exitoso: {persona.nombre} {persona.apellido}",
+            metadata={
+                "id_trabajador": trabajador.id_trabajador,
+                "id_persona": persona.id_persona,
+                "id_empresa": trabajador.id_empresa,
+                "codigo_trabajador": trabajador.codigo_trabajador
+            }
+        )
+
+        return {
+            "mensaje": "Inicio de sesión exitoso",
+            "id_trabajador": trabajador.id_trabajador,
+            "id_persona": persona.id_persona, 
+            "id_supervisor": trabajador.id_supervisor_trabajador,
+            "id_empresa_trabajador": trabajador.id_empresa,
+            "nombre": persona.nombre,
+            "correo": persona.correo,
+            "rol": persona.rol
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await LogServicio.registrar_error(
+            source="trabajador_servicio.login_trabajador",
+            accion="login_error",
+            error_message=str(e),
+            ip_address=ip_address,
+            metadata={"correo": correo}
+        )
+        raise

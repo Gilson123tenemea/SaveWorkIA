@@ -1,14 +1,15 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 import base64 
 from datetime import date
+from typing import Optional
 from app.modelos.empresa_modelo import Empresa
 from app.modelos.supervisor import Supervisor
 from app.modelos.persona import Persona
-from app.modelos.supervisor import Supervisor
 from app.esquemas.supervisor_esquema import SupervisorCreate, LoginSupervisor, SupervisorUpdate, SupervisorPerfilUpdate
 from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contrasena
 from app.modelos.registrosupervisorinspector import RegistroSupervisorInspector
+from app.servicios.log_service import LogServicio
 
 
 from app.Validaciones.validacion_usuario import (
@@ -27,7 +28,7 @@ from app.Validaciones.validacion_usuario import (
     validar_contrasena
 )
 
-def crear_supervisor(db: Session, datos: SupervisorCreate):
+def crear_supervisor(db: Session, datos: SupervisorCreate, background_tasks: BackgroundTasks):
 
     # ========================================================
     # 1️⃣ VALIDAR QUE LA EMPRESA NO TENGA YA UN SUPERVISOR ACTIVO
@@ -38,6 +39,17 @@ def crear_supervisor(db: Session, datos: SupervisorCreate):
     ).first()
 
     if supervisor_existente:
+        # 📝 LOG: Intento de crear supervisor duplicado
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="crear_supervisor",
+            error_message="Intento de crear supervisor para empresa que ya tiene uno asignado",
+            metadata={
+                "id_empresa": datos.id_empresa_supervisor,
+                "correo": datos.persona.correo
+            }
+        )
         raise HTTPException(
             status_code=400,
             detail="Esta empresa ya tiene un supervisor asignado"
@@ -54,6 +66,16 @@ def crear_supervisor(db: Session, datos: SupervisorCreate):
     # 3️⃣ SI EXISTE Y ESTÁ ACTIVA → NO PERMITIR DUPLICADOS
     # ========================================================
     if persona_existente and persona_existente.borrado is True:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="crear_supervisor",
+            error_message="Intento de crear supervisor con cédula activa duplicada",
+            metadata={
+                "cedula": datos.persona.cedula,
+                "correo": datos.persona.correo
+            }
+        )
         raise HTTPException(
             status_code=400,
             detail="Ya existe una persona activa con esta cédula"
@@ -99,6 +121,21 @@ def crear_supervisor(db: Session, datos: SupervisorCreate):
 
         db.commit()
 
+        # 📝 LOG: Supervisor reactivado
+        background_tasks.add_task(
+            LogServicio.registrar_accion_negocio,
+            source="supervisor_servicio",
+            accion="reactivar_supervisor",
+            user_id=persona_existente.id_persona,
+            user_role="supervisor",
+            estado="success",
+            mensaje=f"Supervisor reactivado: {persona_existente.correo}",
+            metadata={
+                "cedula": datos.persona.cedula,
+                "id_empresa": datos.id_empresa_supervisor
+            }
+        )
+
         return {
             "mensaje": "Supervisor reactivado correctamente",
             "id_persona": persona_existente.id_persona
@@ -141,6 +178,22 @@ def crear_supervisor(db: Session, datos: SupervisorCreate):
     db.add(nuevo_supervisor)
     db.commit()
     db.refresh(nuevo_supervisor)
+
+    # 📝 LOG: Supervisor creado exitosamente
+    background_tasks.add_task(
+        LogServicio.registrar_accion_negocio,
+        source="supervisor_servicio",
+        accion="crear_supervisor",
+        user_id=nueva_persona.id_persona,
+        user_role="supervisor",
+        estado="success",
+        mensaje=f"Supervisor registrado: {nueva_persona.correo}",
+        metadata={
+            "cedula": datos.persona.cedula,
+            "id_empresa": datos.id_empresa_supervisor,
+            "especialidad": datos.especialidad_seguridad
+        }
+    )
 
     return {
         "mensaje": "Supervisor registrado correctamente",
@@ -194,13 +247,20 @@ def listar_supervisores_activos(db: Session):
     return resultado
 
 
-def eliminar_supervisor(db: Session, id_supervisor: int):
+def eliminar_supervisor(db: Session, id_supervisor: int, background_tasks: BackgroundTasks):
 
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_supervisor == id_supervisor
     ).first()
 
     if not supervisor:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="eliminar_supervisor",
+            error_message="Supervisor no encontrado",
+            metadata={"id_supervisor": id_supervisor}
+        )
         raise HTTPException(status_code=404, detail="Supervisor no encontrado")
 
     asignados_activos = db.query(RegistroSupervisorInspector).filter(
@@ -209,6 +269,14 @@ def eliminar_supervisor(db: Session, id_supervisor: int):
     ).first()
 
     if asignados_activos:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="eliminar_supervisor",
+            error_message="No se puede eliminar supervisor con inspectores asignados",
+            user_id=supervisor.id_persona_supervisor,
+            metadata={"id_supervisor": id_supervisor}
+        )
         raise HTTPException(
             status_code=400,
             detail="No se puede eliminar el supervisor porque tiene inspectores asignados. "
@@ -226,20 +294,51 @@ def eliminar_supervisor(db: Session, id_supervisor: int):
 
     db.commit()
 
+    # 📝 LOG: Supervisor eliminado
+    background_tasks.add_task(
+        LogServicio.registrar_accion_negocio,
+        source="supervisor_servicio",
+        accion="eliminar_supervisor",
+        user_id=supervisor.id_persona_supervisor,
+        user_role="supervisor",
+        estado="success",
+        mensaje=f"Supervisor eliminado: {persona.correo if persona else 'ID: ' + str(id_supervisor)}",
+        metadata={"id_supervisor": id_supervisor}
+    )
+
     return {"mensaje": "Supervisor eliminado lógicamente con éxito"}
 
 
-def login_supervisor(db: Session, datos: LoginSupervisor):
+async def login_supervisor(db: Session, datos: LoginSupervisor, ip_address: Optional[str] = None):
     # Buscar la persona
     persona = db.query(Persona).filter(Persona.correo == datos.correo).first()
 
     if not persona:
+        # 📝 LOG: Login fallido - correo no existe
+        await LogServicio.registrar_autenticacion(
+            source="supervisor_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            ip_address=ip_address,
+            error="Correo no registrado"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos"
         )
 
     if not persona.borrado:
+        # 📝 LOG: Login fallido - usuario inactivo
+        await LogServicio.registrar_autenticacion(
+            source="supervisor_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Usuario inactivo"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo o sin permisos"
@@ -247,6 +346,16 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
 
     # Validar contraseña
     if not verificar_contrasena(datos.contrasena, persona.contrasena):
+        # 📝 LOG: Login fallido - contraseña incorrecta
+        await LogServicio.registrar_autenticacion(
+            source="supervisor_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Contraseña incorrecta"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos"
@@ -259,10 +368,35 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
     ).first()
 
     if not supervisor:
+        # 📝 LOG: Login fallido - no es supervisor
+        await LogServicio.registrar_autenticacion(
+            source="supervisor_servicio",
+            accion="login_fallido",
+            correo=datos.correo,
+            estado="failed",
+            user_id=persona.id_persona,
+            ip_address=ip_address,
+            error="Usuario no es supervisor"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="El usuario no es supervisor"
         )
+
+    # 📝 LOG: Login exitoso
+    await LogServicio.registrar_autenticacion(
+        source="supervisor_servicio",
+        accion="login_exitoso",
+        correo=datos.correo,
+        estado="success",
+        user_id=persona.id_persona,
+        ip_address=ip_address,
+        mensaje=f"Login exitoso para {datos.correo}",
+        metadata={
+            "id_supervisor": supervisor.id_supervisor,
+            "nombre": persona.nombre
+        }
+    )
 
     # ✔️ SALIDA CORRECTA CON EMPRESA
     return {
@@ -276,7 +410,7 @@ def login_supervisor(db: Session, datos: LoginSupervisor):
     }
 
 
-def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
+def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate, background_tasks: BackgroundTasks):
 
     # ============================
     # 🔎 BUSCAR SUPERVISOR ACTIVO
@@ -287,6 +421,13 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     ).first()
 
     if not supervisor:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="editar_supervisor",
+            error_message="Supervisor no encontrado o inactivo",
+            metadata={"id_supervisor": id_supervisor}
+        )
         raise HTTPException(
             status_code=404,
             detail="Supervisor no encontrado o inactivo"
@@ -301,6 +442,14 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     ).first()
 
     if not persona:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="editar_supervisor",
+            error_message="Persona asociada no encontrada o inactiva",
+            user_id=supervisor.id_persona_supervisor,
+            metadata={"id_supervisor": id_supervisor}
+        )
         raise HTTPException(
             status_code=404,
             detail="Persona asociada no encontrada o inactiva"
@@ -343,6 +492,14 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     ).first()
 
     if otro_supervisor:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="editar_supervisor",
+            error_message="Empresa ya tiene otro supervisor asignado",
+            user_id=supervisor.id_persona_supervisor,
+            metadata={"id_supervisor": id_supervisor, "id_empresa": datos.id_empresa_supervisor}
+        )
         raise HTTPException(
             status_code=400,
             detail="La empresa seleccionada ya tiene un supervisor asignado"
@@ -380,6 +537,22 @@ def editar_supervisor(db: Session, id_supervisor: int, datos: SupervisorUpdate):
     db.commit()
     db.refresh(supervisor)
     db.refresh(persona)
+
+    # 📝 LOG: Supervisor actualizado
+    background_tasks.add_task(
+        LogServicio.registrar_accion_negocio,
+        source="supervisor_servicio",
+        accion="editar_supervisor",
+        user_id=persona.id_persona,
+        user_role="supervisor",
+        estado="success",
+        mensaje=f"Supervisor actualizado: {persona.correo}",
+        metadata={
+            "id_supervisor": id_supervisor,
+            "cedula": datos.persona.cedula,
+            "id_empresa": datos.id_empresa_supervisor
+        }
+    )
 
     # ============================
     # ✅ RESPUESTA
@@ -462,7 +635,8 @@ def obtener_perfil_supervisor(db: Session, id_supervisor: int):
 def actualizar_perfil_supervisor(
     db: Session,
     id_supervisor: int,
-    datos: SupervisorPerfilUpdate
+    datos: SupervisorPerfilUpdate,
+    background_tasks: BackgroundTasks
 ):
     supervisor = db.query(Supervisor).filter(
         Supervisor.id_supervisor == id_supervisor,
@@ -488,6 +662,14 @@ def actualizar_perfil_supervisor(
     ).first()
 
     if correo_existente:
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="supervisor_servicio",
+            accion="actualizar_perfil",
+            error_message="Intento de cambiar correo a uno ya registrado",
+            user_id=supervisor.id_persona_supervisor,
+            metadata={"id_supervisor": id_supervisor, "correo_nuevo": datos.correo}
+        )
         raise HTTPException(
             status_code=400,
             detail="El correo ya está registrado por otra persona"
@@ -501,6 +683,18 @@ def actualizar_perfil_supervisor(
 
     db.commit()
     db.refresh(persona)
+
+    # 📝 LOG: Perfil actualizado
+    background_tasks.add_task(
+        LogServicio.registrar_accion_negocio,
+        source="supervisor_servicio",
+        accion="actualizar_perfil",
+        user_id=persona.id_persona,
+        user_role="supervisor",
+        estado="success",
+        mensaje=f"Perfil actualizado: {persona.correo}",
+        metadata={"id_supervisor": id_supervisor}
+    )
 
     return {
         "mensaje": "Perfil del supervisor actualizado correctamente",

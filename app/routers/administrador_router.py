@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.administrador_esquema import AdministradorCreate, LoginAdministrador
@@ -6,7 +6,6 @@ from app.servicios.administrador_servicio import crear_administrador, login_admi
 
 router = APIRouter(prefix="/administradores", tags=["Administrador"])
 
-# Dependencia para la sesión de base de datos
 def get_db():
     db = SessionLocal()
     try:
@@ -19,5 +18,11 @@ def registrar_admin(request: AdministradorCreate, db: Session = Depends(get_db))
     return crear_administrador(db, request)
 
 @router.post("/login")
-def login_admin(request: LoginAdministrador, db: Session = Depends(get_db)):
-    return login_administrador(db, request)
+async def login_admin(
+    request: LoginAdministrador, 
+    db: Session = Depends(get_db),
+    http_request: Request = None
+):
+    # Obtener IP del cliente
+    ip_address = http_request.client.host if http_request else None
+    return await login_administrador(db, request, ip_address)

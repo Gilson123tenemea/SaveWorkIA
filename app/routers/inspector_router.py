@@ -1,5 +1,5 @@
 # app/rutas/inspectores_ruta.py
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.inspector_esquema import (
@@ -7,7 +7,7 @@ from app.esquemas.inspector_esquema import (
     LoginInspector,
     ZonaAsignadaInspector,
     InspectorPerfil,
-    InspectorPerfilUpdate,  # 👈 NUEVO
+    InspectorPerfilUpdate,
 )
 from app.servicios import inspector_servicio
 from app.esquemas.fcm_token_esquema import FCMTokenRegistro, FCMTokenDelete
@@ -47,8 +47,12 @@ def validar_correo_disponible(correo: str, db: Session = Depends(get_db)):
 
 # --- Registrar ---
 @router.post("/registrar")
-def registrar_inspector(request: InspectorCreate, db: Session = Depends(get_db)):
-    return inspector_servicio.crear_inspector(db, request)
+def registrar_inspector(
+    request: InspectorCreate, 
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    return inspector_servicio.crear_inspector(db, request, background_tasks)
 
 # --- Listar activos ---
 @router.get("/")
@@ -57,18 +61,33 @@ def listar_inspectores(db: Session = Depends(get_db)):
 
 # --- Editar ---
 @router.put("/{id_inspector}")
-def editar_inspector(id_inspector: int, request: InspectorCreate, db: Session = Depends(get_db)):
-    return inspector_servicio.editar_inspector(db, id_inspector, request)
+def editar_inspector(
+    id_inspector: int, 
+    request: InspectorCreate, 
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    return inspector_servicio.editar_inspector(db, id_inspector, request, background_tasks)
 
 # --- Borrado lógico ---
 @router.delete("/{id_inspector}")
-def eliminar_inspector(id_inspector: int, db: Session = Depends(get_db)):
-    return inspector_servicio.eliminar_inspector(db, id_inspector)
+def eliminar_inspector(
+    id_inspector: int, 
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    return inspector_servicio.eliminar_inspector(db, id_inspector, background_tasks)
 
 # --- Login ---
 @router.post("/login")
-def login_inspector(request: LoginInspector, db: Session = Depends(get_db)):
-    return inspector_servicio.login_inspector(db, request)
+async def login_inspector(
+    request: LoginInspector, 
+    db: Session = Depends(get_db),
+    http_request: Request = None
+):
+    # Obtener IP del cliente
+    ip_address = http_request.client.host if http_request else None
+    return await inspector_servicio.login_inspector(db, request, ip_address)
 
 @router.get("/supervisor/{id_supervisor}")
 def listar_inspectores_por_supervisor(id_supervisor: int, db: Session = Depends(get_db)):
@@ -88,9 +107,11 @@ def obtener_perfil_inspector(id_inspector: int, db: Session = Depends(get_db)):
 def actualizar_perfil_inspector(
     id_inspector: int,
     request: InspectorPerfilUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    return inspector_servicio.actualizar_perfil_inspector(db, id_inspector, request)
+    return inspector_servicio.actualizar_perfil_inspector(db, id_inspector, request, background_tasks)
+
 # --- FCM TOKENS ---
 
 @router.post("/{id_inspector}/fcm-token")

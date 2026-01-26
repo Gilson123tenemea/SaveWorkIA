@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.supervisor_esquema import SupervisorPerfilUpdate
@@ -53,16 +53,22 @@ def validar_cedula_supervisor(cedula: str, db: Session = Depends(get_db)):
 # REGISTRO
 # ============================
 @router.post("/registrar")
-def registrar_supervisor(request: SupervisorCreate, db: Session = Depends(get_db)):
-    return crear_supervisor(db, request)
+def registrar_supervisor(request: SupervisorCreate, db: Session = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
+    return crear_supervisor(db, request, background_tasks)
 
 
 # ============================
 # LOGIN
 # ============================
 @router.post("/login")
-def login_supervisor_endpoint(request: LoginSupervisor, db: Session = Depends(get_db)):
-    return login_supervisor(db, request)
+async def login_supervisor_endpoint(
+    request: LoginSupervisor, 
+    db: Session = Depends(get_db),
+    http_request: Request = None
+):
+    # Obtener IP del cliente
+    ip_address = http_request.client.host if http_request else None
+    return await login_supervisor(db, request, ip_address)
 
 
 # ============================
@@ -77,16 +83,16 @@ def listar_supervisores(db: Session = Depends(get_db)):
 # ELIMINAR (BORRADO LÓGICO)
 # ============================
 @router.delete("/eliminar/{id_supervisor}")
-def eliminar_supervisor_endpoint(id_supervisor: int, db: Session = Depends(get_db)):
-    return eliminar_supervisor(db, id_supervisor)
+def eliminar_supervisor_endpoint(id_supervisor: int, db: Session = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
+    return eliminar_supervisor(db, id_supervisor, background_tasks)
 
 
 # ============================
 # EDITAR SUPERVISOR (COMPLETO)
 # ============================
 @router.put("/editar/{id_supervisor}")
-def actualizar_supervisor(id_supervisor: int, request: SupervisorUpdate, db: Session = Depends(get_db)):
-    return editar_supervisor(db, id_supervisor, request)
+def actualizar_supervisor(id_supervisor: int, request: SupervisorUpdate, db: Session = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
+    return editar_supervisor(db, id_supervisor, request, background_tasks)
 
 
 # ============================
@@ -112,16 +118,16 @@ def obtener_perfil(id_supervisor: int, db: Session = Depends(get_db)):
 def actualizar_perfil(
     id_supervisor: int,
     request: SupervisorPerfilUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    return actualizar_perfil_supervisor(db, id_supervisor, request)
+    return actualizar_perfil_supervisor(db, id_supervisor, request, background_tasks)
 
 @router.get("/empresas-disponibles", response_model=list[EmpresaResponse])
 def obtener_empresas_sin_supervisor(db: Session = Depends(get_db)):
     from app.servicios.supervisor_servicio import listar_empresas_sin_supervisor
     return listar_empresas_sin_supervisor(db)
 
-# En supervisor_ruta.py - REEMPLAZA tu endpoint actual
 
 @router.get("/validar-correo")
 def validar_correo_supervisor(correo: str, db: Session = Depends(get_db)):

@@ -255,7 +255,7 @@ def obtener_incumplimientos_por_cedula(db: Session, cedula: str):
     # 4️⃣ RESPONSE FINAL
     # ===========================
     return {
-        "estadisticas": {
+        "estadisticas": {   
             "total": total,
             "cumple": cumple,
             "incumple": incumple,

@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
-
-
 
 from app.esquemas.trabajador_esquema import (
     TrabajadorPersonaCreate,
@@ -22,6 +20,20 @@ def get_db():
     finally:
         db.close()
 
+
+def obtener_ip_cliente(request: Request) -> str:
+    """Extrae la IP del cliente desde el request"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip
+    
+    return request.client.host if request.client else "unknown"
+
+
 @router.get("/validar-codigo/{codigo}/empresa/{id_empresa}")
 def validar_codigo(codigo: str, id_empresa: int, db: Session = Depends(get_db)):
     from app.servicios.trabajador_servicio import codigo_existe_activo
@@ -29,9 +41,9 @@ def validar_codigo(codigo: str, id_empresa: int, db: Session = Depends(get_db)):
     existe = codigo_existe_activo(db, codigo, id_empresa)
     return {"existe": existe}
 
+
 @router.get("/validar-correo/{correo}")
 def validar_correo_disponible(correo: str, db: Session = Depends(get_db)):
-
     from app.servicios.inspector_servicio import correo_existe_activo
     existe = correo_existe_activo(db, correo)
     return {
@@ -40,12 +52,16 @@ def validar_correo_disponible(correo: str, db: Session = Depends(get_db)):
         "mensaje": "Correo disponible" if not existe else "Correo ya registrado"
     }
 
-# --------------------------------------------------
-# CREAR PERSONA + TRABAJADOR
-# --------------------------------------------------
+
 @router.post("/", response_model=TrabajadorResponse)
-def crear_trabajador(data: TrabajadorPersonaCreate, db: Session = Depends(get_db)):
-    return trabajador_servicio.crear_trabajador_completo(db, data)
+async def crear_trabajador(
+    data: TrabajadorPersonaCreate, 
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    ip_address = obtener_ip_cliente(request)
+    return await trabajador_servicio.crear_trabajador_completo(db, data, ip_address)
+
 
 @router.get("/validar-correo/{correo}")
 def validar_correo_trabajador(correo: str, db: Session = Depends(get_db)):
@@ -62,53 +78,57 @@ def validar_cedula_supervisor(cedula: str, db: Session = Depends(get_db)):
     existe = cedula_existe_activa(db, cedula)
     return {"existe": existe}
 
-# --------------------------------------------------
-# LISTAR
-# --------------------------------------------------
+
 @router.get("/", response_model=list[TrabajadorResponse])
 def listar_trabajadores(db: Session = Depends(get_db)):
     return trabajador_servicio.obtener_trabajadores_completos(db)
 
-@router.post("/login")
-def login(data: LoginTrabajador, db: Session = Depends(get_db)):
-    return login_trabajador(db, data.correo, data.contrasena)
 
-# --------------------------------------------------
-# OBTENER POR ID
-# --------------------------------------------------
+@router.post("/login")
+async def login(
+    data: LoginTrabajador, 
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    ip_address = obtener_ip_cliente(request)
+    return await login_trabajador(db, data.correo, data.contrasena, ip_address)
+
+
 @router.get("/{id_trabajador}", response_model=TrabajadorResponse)
 def obtener_trabajador(id_trabajador: int, db: Session = Depends(get_db)):
     return trabajador_servicio.obtener_trabajador_completo(db, id_trabajador)
 
 
-# --------------------------------------------------
-# EDITAR PERSONA + TRABAJADOR
-# --------------------------------------------------
 @router.put("/{id_trabajador}", response_model=TrabajadorResponse)
-def editar_trabajador(id_trabajador: int, data: TrabajadorPersonaCreate, db: Session = Depends(get_db)):
-    return trabajador_servicio.editar_trabajador_completo(db, id_trabajador, data)
+async def editar_trabajador(
+    id_trabajador: int, 
+    data: TrabajadorPersonaCreate, 
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    ip_address = obtener_ip_cliente(request)
+    return await trabajador_servicio.editar_trabajador_completo(db, id_trabajador, data, ip_address)
 
 
-# --------------------------------------------------
-# BORRADO LÓGICO
-# --------------------------------------------------
 @router.put("/borrar/{id_trabajador}")
-def borrar_trabajador(id_trabajador: int, db: Session = Depends(get_db)):
-    return trabajador_servicio.borrado_logico_trabajador(db, id_trabajador)
+async def borrar_trabajador(
+    id_trabajador: int, 
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    ip_address = obtener_ip_cliente(request)
+    return await trabajador_servicio.borrado_logico_trabajador(db, id_trabajador, ip_address)
 
-# --------------------------------------------------
-# LISTAR TRABAJADORES DE UN SUPERVISOR
-# --------------------------------------------------
+
 @router.get("/supervisor/{id_supervisor}", response_model=list[TrabajadorResponse])
 def listar_trabajadores_por_supervisor(id_supervisor: int, db: Session = Depends(get_db)):
     return trabajador_servicio.obtener_trabajadores_por_supervisor(db, id_supervisor)
 
-# --------------------------------------------------
-# LISTAR TRABAJADORES DE UN SUPERVISOR NO ASIGNADOS
-# --------------------------------------------------
+
 @router.get("/supervisor/{id_supervisor}/no-asignados", response_model=list[TrabajadorResponse])
 def listar_trabajadores_no_asignados(id_supervisor: int, db: Session = Depends(get_db)):
     return trabajador_servicio.obtener_trabajadores_no_asignados(db, id_supervisor)
+
 
 @router.get("/extraer/entrada/camara/{codigo}/empresa/{id_empresa}")
 def obtener_trabajador_con_empresa(codigo: str, id_empresa: int, db: Session = Depends(get_db)):
