@@ -1,19 +1,36 @@
 from sqlalchemy.orm import Session
 from datetime import date
 from typing import Optional
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
+
 from app.modelos.persona import Persona
 from app.modelos.administrador import Administrador
 from app.esquemas.administrador_esquema import AdministradorCreate, LoginAdministrador
 from app.seguridad.hash_contrasena import encriptar_contrasena, verificar_contrasena
 from app.servicios.log_service import LogServicio
 
-def crear_administrador(db: Session, datos: AdministradorCreate):
-    """Crear administrador con log"""
+
+def crear_administrador(db: Session, datos: AdministradorCreate, background_tasks: BackgroundTasks):
+    """Crear administrador con logs"""
     try:
         if db.query(Persona).filter(Persona.cedula == datos.persona.cedula).first():
+            background_tasks.add_task(
+                LogServicio.registrar_error,
+                source="administrador_servicio",
+                accion="crear_administrador",
+                error_message="Intento de crear admin con cédula duplicada",
+                metadata={"cedula": datos.persona.cedula}
+            )
             raise HTTPException(status_code=400, detail="La cédula ya está registrada")
+        
         if db.query(Persona).filter(Persona.correo == datos.persona.correo).first():
+            background_tasks.add_task(
+                LogServicio.registrar_error,
+                source="administrador_servicio",
+                accion="crear_administrador",
+                error_message="Intento de crear admin con correo duplicado",
+                metadata={"correo": datos.persona.correo}
+            )
             raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
         contrasena_encriptada = encriptar_contrasena(datos.persona.contrasena)
@@ -46,20 +63,18 @@ def crear_administrador(db: Session, datos: AdministradorCreate):
         db.refresh(nuevo_admin)
 
         # 📝 LOG: Registro exitoso
-        import asyncio
-        asyncio.create_task(
-            LogServicio.registrar_accion_negocio(
-                source="administrador_servicio",
-                accion="registro_admin",
-                user_id=nueva_persona.id_persona,
-                user_role="admin",
-                estado="success",
-                mensaje=f"Administrador registrado: {nueva_persona.correo}",
-                metadata={
-                    "cedula": datos.persona.cedula,
-                    "nombre": f"{datos.persona.nombre} {datos.persona.apellido}"
-                }
-            )
+        background_tasks.add_task(
+            LogServicio.registrar_accion_negocio,
+            source="administrador_servicio",
+            accion="crear_administrador",
+            user_id=nueva_persona.id_persona,
+            user_role="admin",
+            estado="success",
+            mensaje=f"Administrador registrado: {nueva_persona.correo}",
+            metadata={
+                "cedula": datos.persona.cedula,
+                "nombre": f"{datos.persona.nombre} {datos.persona.apellido}"
+            }
         )
 
         return {
@@ -72,33 +87,21 @@ def crear_administrador(db: Session, datos: AdministradorCreate):
             "borrado": nuevo_admin.borrado
         }
     
-    except HTTPException as e:
-        # 📝 LOG: Error conocido
-        import asyncio
-        asyncio.create_task(
-            LogServicio.registrar_error(
-                source="administrador_servicio",
-                accion="registro_admin",
-                error_message=str(e.detail),
-                metadata={"cedula": datos.persona.cedula}
-            )
-        )
+    except HTTPException:
         raise
     except Exception as e:
         # 📝 LOG: Error inesperado
-        import asyncio
-        asyncio.create_task(
-            LogServicio.registrar_error(
-                source="administrador_servicio",
-                accion="registro_admin",
-                error_message=str(e)
-            )
+        background_tasks.add_task(
+            LogServicio.registrar_error,
+            source="administrador_servicio",
+            accion="crear_administrador",
+            error_message=str(e)
         )
         raise
 
 
 async def login_administrador(db: Session, datos: LoginAdministrador, ip_address: Optional[str] = None):
-    """Login administrador con log completo"""
+    """Login administrador con logs"""
     try:
         persona = db.query(Persona).filter(Persona.correo == datos.correo).first()
 

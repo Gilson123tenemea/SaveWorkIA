@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.config import SessionLocal
 from app.esquemas.administrador_esquema import AdministradorCreate, LoginAdministrador
@@ -14,8 +14,12 @@ def get_db():
         db.close()
 
 @router.post("/registrar")
-def registrar_admin(request: AdministradorCreate, db: Session = Depends(get_db)):
-    return crear_administrador(db, request)
+def registrar_admin(
+    request: AdministradorCreate, 
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    return crear_administrador(db, request, background_tasks)
 
 @router.post("/login")
 async def login_admin(
