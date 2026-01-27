@@ -34,18 +34,18 @@ def validar_unicidad_camara(db: Session, camara: CamaraCreate):
             detail="La zona seleccionada no existe o está inactiva"
         )
 
-    # 🔹 VALIDAR CÓDIGO ÚNICO SOLO EN LA MISMA ZONA
-    codigo_dup = db.query(Camara).filter(
-        Camara.codigo == camara.codigo,
+    # 🔒 REGLA DE NEGOCIO: SOLO UNA CÁMARA POR ZONA
+    camara_en_zona = db.query(Camara).filter(
         Camara.id_zona == camara.id_zona,
         Camara.borrado == True
     ).first()
 
-    if codigo_dup:
+    if camara_en_zona:
         raise HTTPException(
             status_code=400,
-            detail="Ya existe una cámara activa con ese código en esta zona"
+            detail="Solo puede existir una cámara activa por zona"
         )
+
 
 # ============================================================
 # 🔹 CREAR CÁMARA
@@ -165,7 +165,7 @@ def probar_conexion_camara(url: str):
         resp = requests.get(test_url, timeout=3)
 
         if resp.status_code != 200:
-            return False, "La cámara no respondió correctamente"
+            return False, "La cámara respondió correctamente"
 
         # Validar que sea una imagen válida
         img_np = np.frombuffer(resp.content, np.uint8)
