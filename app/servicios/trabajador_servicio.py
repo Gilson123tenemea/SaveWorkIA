@@ -10,6 +10,8 @@ from app.modelos.zona_modelo import Zona
 from app.modelos.camara_modelo import Camara
 from app.modelos.inspector_zona import InspectorZona
 from app.modelos.inspector import Inspector
+from datetime import date
+from sqlalchemy import func
 
 from app.Validaciones.validacion_usuario import (
     validar_cedula_ecuatoriana,
@@ -509,6 +511,28 @@ def obtener_trabajadores_no_asignados(db: Session, id_supervisor: int):
 
     return trabajadores
 
+def validar_registro_unico_diario(db: Session, id_trabajador: int, id_empresa: int) -> dict:
+
+    from app.modelos.registros_asistencia import RegistroAsistencia
+    
+    hoy = date.today()
+    
+    registro_hoy = db.query(RegistroAsistencia).filter(
+        RegistroAsistencia.id_trabajador == id_trabajador,
+        RegistroAsistencia.id_empresa == id_empresa,
+        func.date(RegistroAsistencia.fecha_hora) == hoy  
+    ).first()
+    
+    if registro_hoy:
+        return {
+            "existe": True,
+            "id_registro": registro_hoy.id_registro,
+            "fecha_hora": registro_hoy.fecha_hora,
+            "cumple_epp": registro_hoy.cumple_epp,
+            "codigo_ingresado": registro_hoy.codigo_ingresado
+        }
+    
+    return None
 
 def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: int):
     trabajador = db.query(Trabajador).filter(
@@ -524,6 +548,18 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
         raise HTTPException(
             status_code=400,
             detail=f"El trabajador {codigo} no pertenece a esta empresa"
+        )
+
+    registro_existente = validar_registro_unico_diario(db, trabajador.id_trabajador, id_empresa)
+    
+    if registro_existente:
+        fecha_registro = registro_existente["fecha_hora"].strftime("%d/%m/%Y a las %H:%M:%S")
+        estado_epp = "✅ CUMPLIÓ" if registro_existente["cumple_epp"] else "❌ NO CUMPLIÓ"
+        
+        raise HTTPException(
+            status_code=400,
+            detail=f"El trabajador {codigo} ya registró su asistencia hoy ({fecha_registro}). "
+                   f"Estado EPP: {estado_epp}. Solo se permite un registro por día."
         )
 
     asignacion = db.query(TrabajadorZona).filter(
@@ -600,7 +636,6 @@ def extraer_trabajador_codigo_con_camara(db: Session, codigo: str, id_empresa: i
         },
         "inspector": inspector_data
     }
-
 
 async def login_trabajador(db: Session, correo: str, contrasena: str, ip_address: str = None):
     try:
