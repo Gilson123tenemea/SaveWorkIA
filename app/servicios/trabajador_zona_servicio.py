@@ -11,8 +11,10 @@ from app.esquemas.trabajador_zona_esquema import TrabajadorZonaCreate
 from app.modelos.trabajador import Trabajador
 from app.modelos.registros_asistencia import RegistroAsistencia
 from app.modelos.evidencias_fallo import EvidenciaFallo
-from app.esquemas.trabajador_zona_esquema import TrabajadorZonaCreate
-from app.modelos.trabajador import Trabajador
+
+# Importar servicio de logs
+from app.servicios.log_service import LogServicio
+
 
 def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
     supervisor = db.query(Supervisor).filter(
@@ -106,16 +108,67 @@ def obtener_zonas_con_detalles_por_supervisor(db: Session, id_supervisor: int):
 # 📌 CRUD Trabajador-Zona
 # ===========================
 
-def crear_trabajador_zona(db: Session, datos: TrabajadorZonaCreate):
-    nueva_asignacion = TrabajadorZona(
-        id_trabajador_trabajadorzona=datos.id_trabajador_trabajadorzona,
-        id_zona_trabajadorzona=datos.id_zona_trabajadorzona,
-        borrado=True
-    )
-    db.add(nueva_asignacion)
-    db.commit()
-    db.refresh(nueva_asignacion)
-    return nueva_asignacion
+async def crear_trabajador_zona(
+    db: Session, 
+    datos: TrabajadorZonaCreate,
+    ip_address: str = None
+):
+    """Crea una asignación de trabajador a zona"""
+    try:
+        # Obtener información del trabajador para el log
+        trabajador = db.query(Trabajador).filter(
+            Trabajador.id_trabajador == datos.id_trabajador_trabajadorzona
+        ).first()
+        
+        # Obtener información de la zona para el log
+        zona = db.query(Zona).filter(
+            Zona.id_Zona == datos.id_zona_trabajadorzona
+        ).first()
+        
+        nueva_asignacion = TrabajadorZona(
+            id_trabajador_trabajadorzona=datos.id_trabajador_trabajadorzona,
+            id_zona_trabajadorzona=datos.id_zona_trabajadorzona,
+            borrado=True
+        )
+        db.add(nueva_asignacion)
+        db.commit()
+        db.refresh(nueva_asignacion)
+        
+        # Log de asignación exitosa
+        await LogServicio.registrar_accion_negocio(
+            source="trabajador_zona_servicio.crear_trabajador_zona",
+            accion="asignar_trabajador_zona",
+            user_id=datos.id_trabajador_trabajadorzona,
+            user_role="trabajador",
+            estado="success",
+            mensaje=f"Trabajador asignado a zona: {zona.nombreZona if zona else 'N/A'}",
+            ip_address=ip_address,
+            metadata={
+                "id_asignacion": nueva_asignacion.id_trabajador_zona,
+                "id_trabajador": datos.id_trabajador_trabajadorzona,
+                "id_zona": datos.id_zona_trabajadorzona,
+                "nombre_zona": zona.nombreZona if zona else None,
+                "codigo_trabajador": trabajador.codigo_trabajador if trabajador else None,
+                "nombre_trabajador": f"{trabajador.persona.nombre} {trabajador.persona.apellido}" if trabajador and trabajador.persona else None
+            }
+        )
+        
+        return nueva_asignacion
+        
+    except Exception as e:
+        # Log de error
+        await LogServicio.registrar_error(
+            source="trabajador_zona_servicio.crear_trabajador_zona",
+            accion="asignar_trabajador_zona",
+            error_message=str(e),
+            user_id=datos.id_trabajador_trabajadorzona if datos else None,
+            ip_address=ip_address,
+            metadata={
+                "id_trabajador": datos.id_trabajador_trabajadorzona if datos else None,
+                "id_zona": datos.id_zona_trabajadorzona if datos else None
+            }
+        )
+        raise
 
 
 def obtener_trabajador_zonas(db: Session):
@@ -128,25 +181,144 @@ def obtener_trabajador_zona_por_id(db: Session, asignacion_id: int):
     ).first()
 
 
-# 🔥 Eliminación física
-def eliminar_fisico_trabajador_zona(db: Session, asignacion_id: int):
-    asignacion = obtener_trabajador_zona_por_id(db, asignacion_id)
-    if asignacion:
+async def eliminar_fisico_trabajador_zona(
+    db: Session, 
+    asignacion_id: int,
+    ip_address: str = None
+):
+    """Eliminación física de asignación trabajador-zona"""
+    try:
+        asignacion = obtener_trabajador_zona_por_id(db, asignacion_id)
+        
+        if not asignacion:
+            await LogServicio.registrar_accion_negocio(
+                source="trabajador_zona_servicio.eliminar_fisico_trabajador_zona",
+                accion="eliminar_asignacion_fisica",
+                estado="failed",
+                mensaje=f"Intento de eliminar asignación inexistente: {asignacion_id}",
+                ip_address=ip_address,
+                metadata={"id_asignacion": asignacion_id}
+            )
+            return False
+        
+        # Guardar datos antes de eliminar
+        id_trabajador = asignacion.id_trabajador_trabajadorzona
+        id_zona = asignacion.id_zona_trabajadorzona
+        
+        # Obtener información adicional
+        trabajador = db.query(Trabajador).filter(
+            Trabajador.id_trabajador == id_trabajador
+        ).first()
+        
+        zona = db.query(Zona).filter(
+            Zona.id_Zona == id_zona
+        ).first()
+        
         db.delete(asignacion)
         db.commit()
+        
+        # Log de eliminación física exitosa
+        await LogServicio.registrar_accion_negocio(
+            source="trabajador_zona_servicio.eliminar_fisico_trabajador_zona",
+            accion="eliminar_asignacion_fisica",
+            user_id=id_trabajador,
+            user_role="trabajador",
+            estado="success",
+            mensaje=f"Asignación eliminada físicamente: Trabajador-Zona",
+            ip_address=ip_address,
+            metadata={
+                "id_asignacion": asignacion_id,
+                "id_trabajador": id_trabajador,
+                "id_zona": id_zona,
+                "nombre_zona": zona.nombreZona if zona else None,
+                "codigo_trabajador": trabajador.codigo_trabajador if trabajador else None,
+                "tipo_eliminacion": "fisica"
+            }
+        )
+        
         return True
-    return False
+        
+    except Exception as e:
+        # Log de error
+        await LogServicio.registrar_error(
+            source="trabajador_zona_servicio.eliminar_fisico_trabajador_zona",
+            accion="eliminar_asignacion_fisica",
+            error_message=str(e),
+            ip_address=ip_address,
+            metadata={"id_asignacion": asignacion_id}
+        )
+        raise
 
 
-# 🔥 Eliminación lógica
-def eliminar_logico_trabajador_zona(db: Session, asignacion_id: int):
-    asignacion = obtener_trabajador_zona_por_id(db, asignacion_id)
-    if asignacion:
+async def eliminar_logico_trabajador_zona(
+    db: Session, 
+    asignacion_id: int,
+    ip_address: str = None
+):
+    """Eliminación lógica de asignación trabajador-zona"""
+    try:
+        asignacion = obtener_trabajador_zona_por_id(db, asignacion_id)
+        
+        if not asignacion:
+            await LogServicio.registrar_accion_negocio(
+                source="trabajador_zona_servicio.eliminar_logico_trabajador_zona",
+                accion="eliminar_asignacion_logica",
+                estado="failed",
+                mensaje=f"Intento de eliminar asignación inexistente: {asignacion_id}",
+                ip_address=ip_address,
+                metadata={"id_asignacion": asignacion_id}
+            )
+            return None
+        
+        # Obtener información antes de marcar como eliminado
+        id_trabajador = asignacion.id_trabajador_trabajadorzona
+        id_zona = asignacion.id_zona_trabajadorzona
+        
+        trabajador = db.query(Trabajador).filter(
+            Trabajador.id_trabajador == id_trabajador
+        ).first()
+        
+        zona = db.query(Zona).filter(
+            Zona.id_Zona == id_zona
+        ).first()
+        
         asignacion.borrado = False
         db.commit()
         db.refresh(asignacion)
+        
+        # Log de eliminación lógica exitosa
+        await LogServicio.registrar_accion_negocio(
+            source="trabajador_zona_servicio.eliminar_logico_trabajador_zona",
+            accion="eliminar_asignacion_logica",
+            user_id=id_trabajador,
+            user_role="trabajador",
+            estado="success",
+            mensaje=f"Asignación eliminada lógicamente: Trabajador de zona {zona.nombreZona if zona else 'N/A'}",
+            ip_address=ip_address,
+            metadata={
+                "id_asignacion": asignacion_id,
+                "id_trabajador": id_trabajador,
+                "id_zona": id_zona,
+                "nombre_zona": zona.nombreZona if zona else None,
+                "codigo_trabajador": trabajador.codigo_trabajador if trabajador else None,
+                "nombre_trabajador": f"{trabajador.persona.nombre} {trabajador.persona.apellido}" if trabajador and trabajador.persona else None,
+                "tipo_eliminacion": "logica"
+            }
+        )
+        
         return asignacion
-    return None
+        
+    except Exception as e:
+        # Log de error
+        await LogServicio.registrar_error(
+            source="trabajador_zona_servicio.eliminar_logico_trabajador_zona",
+            accion="eliminar_asignacion_logica",
+            error_message=str(e),
+            ip_address=ip_address,
+            metadata={"id_asignacion": asignacion_id}
+        )
+        raise
+
 
 def obtener_trabajador_zonas_detalles(db: Session):
 
