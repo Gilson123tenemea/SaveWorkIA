@@ -31,6 +31,7 @@ from app.modelos import token_reset_modelo
 from app.modelos import fcm_token_modelo
 from app.logs.mongodb import MongoDB
 
+# DEPLEIEGE EN AZURE
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
 # ----------------------------------------------------------------------
