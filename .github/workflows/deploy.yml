@@ -43,7 +43,15 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # Paso 5: Desplegar con Azure CLI
+    # Paso 5: Registrar provider si no está registrado
+    - name: Register Container Instance Provider
+      uses: azure/CLI@v1
+      with:
+        azcliversion: latest
+        inlineScript: |
+          az provider register --namespace Microsoft.ContainerInstance
+
+    # Paso 6: Desplegar con Azure CLI
     - name: Deploy to Azure Container Instances
       uses: azure/CLI@v1
       with:
@@ -69,7 +77,6 @@ jobs:
               MONGO_DB_NAME="${{ secrets.MONGO_DB_NAME }}" \
               SMTP_EMAIL="${{ secrets.SMTP_EMAIL }}" \
               SMTP_PASSWORD="${{ secrets.SMTP_PASSWORD }}" \
-            --assign-identity \
             --ip-address public \
             --protocol tcp \
             --restart-policy Always
