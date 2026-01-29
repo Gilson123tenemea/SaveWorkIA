@@ -51,7 +51,7 @@ jobs:
         inlineScript: |
           az provider register --namespace Microsoft.ContainerInstance
 
-    # Paso 6: Desplegar con Azure CLI
+# Paso 6: Desplegar con Azure CLI
     - name: Deploy to Azure Container Instances
       uses: azure/CLI@v1
       with:
@@ -67,6 +67,7 @@ jobs:
             --cpu 2 \
             --memory 2 \
             --ports 8000 \
+            --os-type Linux \
             --environment-variables \
               DB_USER="${{ secrets.DB_USER }}" \
               DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
