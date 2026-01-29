@@ -37,6 +37,12 @@ jobs:
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
+    # ⭐ NUEVO PASO: Login a Azure
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
     # Paso 5: Desplegar con Azure CLI
     - name: Deploy to Azure Container Instances
       uses: azure/CLI@v1
