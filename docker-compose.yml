@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  # ====== CONTENEDOR 1: BACKEND (Tu API Python) ======
+  backend:
+    container_name: saveworkia_backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8000:8000"  # Puerto local:puerto contenedor
+    environment:
+      # Variables para MySQL
+      DB_USER: savework
+      DB_PASSWORD: savework123
+      DB_HOST: mysql_db
+      DB_PORT: 3306
+      DB_NAME: saveworkdboriginal8
+      
+      # Variables para MongoDB (desde tu .env)
+      MONGO_URI: mongodb+srv://tenemeaaguilar_db_user:rS5niuvWzsGrQhWN@cluster0.323rkz7.mongodb.net/savework_logs?retryWrites=true&w=majority&tls=true
+      MONGO_DB_NAME: savework_logs
+      
+      # Variables SMTP (desde tu .env)
+      SMTP_EMAIL: tenemeaaguilar@gmail.com
+      SMTP_PASSWORD: jaoynifadnxccglk
+      
+      # Variables de entorno de la app
+      PYTHONUNBUFFERED: 1
+      ENVIRONMENT: production
+    
+    depends_on:
+      mysql_db:
+        condition: service_healthy
+    
+    networks:
+      - saveworkia_network
+    
+    volumes:
+      - ./app:/app/app  # Sincroniza cambios en desarrollo
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ====== CONTENEDOR 2: MySQL ======
+  mysql_db:
+    container_name: saveworkia_mysql
+    image: mysql:8.0
+    restart: unless-stopped
+    
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: saveworkdboriginal8
+      MYSQL_USER: savework
+      MYSQL_PASSWORD: savework123
+    
+    ports:
+      - "3308:3306"
+    
+    volumes:
+      - mysql_data:/var/lib/mysql
+    
+    networks:
+      - saveworkia_network
+    
+    command: --default-authentication-plugin=mysql_native_password
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ====== CONTENEDOR 3: MongoDB (OPCIONAL - si usas local) ======
+  # Si usas MongoDB Atlas (en la nube), COMENTA ESTA SECCIÓN
+  # mongo_db:
+  #   container_name: saveworkia_mongo
+  #   image: mongo:7.0
+  #   restart: always
+  #   
+  #   ports:
+  #     - "27017:27017"
+  #   
+  #   volumes:
+  #     - mongo_data:/data/db
+  #   
+  #   networks:
+  #     - saveworkia_network
+  #   
+  #   environment:
+  #     MONGO_INITDB_DATABASE: savework_logs
+
+# ====== VOLÚMENES (Almacenamiento persistente) ======
+volumes:
+  mysql_data:
+  # mongo_data:  # COMENTADO si no usas MongoDB local
+
+# ====== RED (Para que los contenedores se comuniquen) ======
+networks:
+  saveworkia_network:
+    driver: bridge

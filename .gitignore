@@ -1,8 +1,44 @@
+# Entornos virtuales
 venv/
+env/
+ENV/
+.venv
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.so
+.Python
+*.egg-info/
+dist/
+build/
 
-*.json
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Datos sensitivos
 app/configuracion/*.json
+*.key
+*.pem
+
+# Docker
+docker-compose.override.yml
+
+# Tests
+.pytest_cache/
+htmlcov/
+.coverage

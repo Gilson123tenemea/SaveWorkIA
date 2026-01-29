@@ -13,17 +13,19 @@ class MongoDB:
     def get_client(cls):
         if cls._client is None:
             try:
+                # Leer desde variables de entorno
                 MONGO_URI = os.getenv("MONGO_URI")
                 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 
                 if not MONGO_URI or not MONGO_DB_NAME:
-                    raise Exception("Variables de entorno MongoDB no definidas")
+                    raise Exception("Variables MongoDB no definidas")
 
-                cls._client = MongoClient(MONGO_URI)
+                cls._client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
                 cls._db = cls._client[MONGO_DB_NAME]
 
+                # Verificar conexión
                 cls._client.admin.command("ping")
-                print("✅ Conexión a MongoDB Atlas exitosa")
+                print("✅ Conexión a MongoDB exitosa")
 
             except ConnectionFailure as e:
                 print(f"❌ Error conectando a MongoDB: {e}")

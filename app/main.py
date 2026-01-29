@@ -34,7 +34,11 @@ from app.logs.mongodb import MongoDB
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
 # ----------------------------------------------------------------------
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+    print("✅ Tablas creadas en MySQL")
+except Exception as e:
+    print(f"⚠️ Advertencia al crear tablas: {e}")
 
 # ----------------------------------------------------------------------
 # 🔹 Importar routers

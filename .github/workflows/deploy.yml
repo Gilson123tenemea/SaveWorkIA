@@ -1,0 +1,62 @@
+name: Build & Deploy to Azure
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  REGISTRY: saveworkiaregistry.azurecr.io
+  IMAGE_NAME: saveworkia-api
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Paso 1: Descargar código
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Paso 2: Conectarse a Azure Container Registry
+    - name: Login to ACR
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ env.REGISTRY }}
+        username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
+        password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
+
+    # Paso 3: Construir imagen Docker
+    - name: Build Docker image
+      run: |
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+    # Paso 4: Subir imagen a Azure Container Registry
+    - name: Push to ACR
+      run: |
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+    # Paso 5: Desplegar a Azure Container Instances
+    - name: Deploy to Azure Container Instances
+      uses: azure/aci-deploy@v1
+      with:
+        resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        name: saveworkia-app
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        registry-login-server: ${{ env.REGISTRY }}
+        registry-username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
+        registry-password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
+        cpu: 2
+        memory: 2
+        ports: 8000
+        environment-variables:
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}
+          SMTP_EMAIL=${{ secrets.SMTP_EMAIL }}
+          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
