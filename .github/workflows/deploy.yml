@@ -37,26 +37,33 @@ jobs:
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-    # Paso 5: Desplegar a Azure Container Instances
+    # Paso 5: Desplegar con Azure CLI
     - name: Deploy to Azure Container Instances
-      uses: azure/aci-deploy@v1
+      uses: azure/CLI@v1
       with:
-        resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
-        name: saveworkia-app
-        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-        registry-login-server: ${{ env.REGISTRY }}
-        registry-username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
-        registry-password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
-        cpu: 2
-        memory: 2
-        ports: 8000
-        environment-variables:
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          MONGO_URI=${{ secrets.MONGO_URI }}
-          MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}
-          SMTP_EMAIL=${{ secrets.SMTP_EMAIL }}
-          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+        azcliversion: latest
+        inlineScript: |
+          az container create \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --name saveworkia-app \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --registry-login-server ${{ env.REGISTRY }} \
+            --registry-username ${{ secrets.AZURE_REGISTRY_USERNAME }} \
+            --registry-password ${{ secrets.AZURE_REGISTRY_PASSWORD }} \
+            --cpu 2 \
+            --memory 2 \
+            --ports 8000 \
+            --environment-variables \
+              DB_USER="${{ secrets.DB_USER }}" \
+              DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              DB_HOST="${{ secrets.DB_HOST }}" \
+              DB_PORT="${{ secrets.DB_PORT }}" \
+              DB_NAME="${{ secrets.DB_NAME }}" \
+              MONGO_URI="${{ secrets.MONGO_URI }}" \
+              MONGO_DB_NAME="${{ secrets.MONGO_DB_NAME }}" \
+              SMTP_EMAIL="${{ secrets.SMTP_EMAIL }}" \
+              SMTP_PASSWORD="${{ secrets.SMTP_PASSWORD }}" \
+            --assign-identity \
+            --ip-address public \
+            --protocol tcp \
+            --restart-policy Always
