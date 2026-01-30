@@ -8,17 +8,19 @@ from sqlalchemy import text
 
 load_dotenv()
 
-# ====== VARIABLES DE ENTORNO ======
+# ====== VARIABLES DE ENTORNO (desde Azure) ======
 DB_USER = os.getenv("DB_USER", "azureuser")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "datadase2026!Secure")
 DB_HOST = os.getenv("DB_HOST", "saveworkia-sqlserver.database.windows.net")
 DB_PORT = os.getenv("DB_PORT", "1433")
 DB_NAME = os.getenv("DB_NAME", "saveworkdboriginal8")
 
+print(f"🔧 Cargando config: {DB_HOST}/{DB_NAME}")
+
 # ====== CODIFICAR CONTRASEÑA ======
 password_encoded = quote_plus(DB_PASSWORD)
 
-# ====== URL DE CONEXIÓN ======
+# ====== URL DE CONEXIÓN PARA AZURE SQL ======
 SQLALCHEMY_DATABASE_URL = (
     f"mssql+pyodbc://{DB_USER}:{password_encoded}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     f"?driver=ODBC+Driver+17+for+SQL+Server"
@@ -27,9 +29,6 @@ SQLALCHEMY_DATABASE_URL = (
     f"&Connection+Timeout=30"
 )
 
-print(f"🔌 Configuración DB: {DB_HOST}/{DB_NAME}")
-
-# ====== CREAR ENGINE (SIN PROBAR CONEXIÓN AÚN) ======
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     echo=False,
@@ -42,23 +41,17 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-print("✅ Engine de SQLAlchemy creado")
-
-# ====== FUNCIÓN PARA VERIFICAR CONEXIÓN ======
 def verificar_conexion():
-    """Verifica conexión a la base de datos"""
+    """Verifica conexión a Azure SQL"""
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT @@VERSION")) 
-            version = result.fetchone()[0]
-            print(f"✅ Conexión a Azure SQL exitosa")
-            print(f"📌 {version[:80]}...")
+            conn.execute(text("SELECT 1"))
+            print("✅ Conexión a Azure SQL exitosa")
             return True
     except Exception as e:
-        print(f"⚠️ Error SQL Server: {str(e)[:150]}")
+        print(f"⚠️ Error SQL: {str(e)[:150]}")
         return False
 
-# ====== FUNCIÓN PARA OBTENER SESIÓN ======
 def get_db():
     db = SessionLocal()
     try:
