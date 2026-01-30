@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: saveworkiaregistry.azurecr.io
-  IMAGE_NAME: saveworkia-api
+  IMAGE_NAME: saveworkia-api-v2
 
 jobs:
   build-and-push:
