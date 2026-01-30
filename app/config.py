@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -7,13 +7,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ====== OBTENER VARIABLES DE ENTORNO ======
-# Si están definidas (Docker/Azure), usarlas
-# Si no, usar valores por defecto (local)
-
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "1234")
 DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "3308")
+DB_PORT = os.getenv("DB_PORT", "3306")
 DB_NAME = os.getenv("DB_NAME", "saveworkdboriginal8")
 
 # ====== CONSTRUIR URL DE CONEXIÓN ======

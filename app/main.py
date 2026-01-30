@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from app.servicios.notificaciones_fcm_servicio import NotificacionesFCMServicio
 from app.config import Base, engine, SessionLocal
-
+from sqlalchemy import text
 # ----------------------------------------------------------------------
 # 🔹 Importar todos los modelos antes de crear las tablas
 # ----------------------------------------------------------------------
@@ -146,7 +146,7 @@ def root():
     """
     try:
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         return {
             "message": "🚀 Proyecto SaveWorkIA funcionando correctamente",
