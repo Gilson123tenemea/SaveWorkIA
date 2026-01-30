@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    # Paso 1: Descargar código
+    # Paso 1: Descargar código del repositorio
     - name: Checkout code
       uses: actions/checkout@v4
 
@@ -37,21 +37,13 @@ jobs:
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-    # ⭐ NUEVO PASO: Login a Azure
+    # Paso 5: Login a Azure con Service Principal
     - name: Azure Login
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    # Paso 5: Registrar provider si no está registrado
-    - name: Register Container Instance Provider
-      uses: azure/CLI@v1
-      with:
-        azcliversion: latest
-        inlineScript: |
-          az provider register --namespace Microsoft.ContainerInstance
-
-# Paso 6: Desplegar con Azure CLI
+    # Paso 6: Desplegar a Azure Container Instances
     - name: Deploy to Azure Container Instances
       uses: azure/CLI@v1
       with:
@@ -78,6 +70,8 @@ jobs:
               MONGO_DB_NAME="${{ secrets.MONGO_DB_NAME }}" \
               SMTP_EMAIL="${{ secrets.SMTP_EMAIL }}" \
               SMTP_PASSWORD="${{ secrets.SMTP_PASSWORD }}" \
+              PYTHONUNBUFFERED=1 \
+              ENVIRONMENT=production \
             --ip-address public \
             --protocol tcp \
             --restart-policy Always
