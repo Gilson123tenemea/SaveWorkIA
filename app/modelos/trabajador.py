@@ -3,7 +3,7 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy import text
 from app.config import Base
-
+from datetime import date
 class Trabajador(Base):
     __tablename__ = "trabajadores"
 
@@ -11,7 +11,7 @@ class Trabajador(Base):
     cargo = Column(String(100), nullable=False)
     implementos_requeridos = Column(String(550), nullable=False)
     estado = Column(Boolean, default=True)
-    fecharegistro = Column(Date, nullable=False, server_default=text('CURDATE()'))
+    fecharegistro = Column(Date, nullable=False, default=date.today) 
     codigo_trabajador = Column(String(50), nullable=False)
     borrado = Column(Boolean, default=False)
     

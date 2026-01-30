@@ -7,6 +7,7 @@ from app.config import Base, engine, SessionLocal
 from sqlalchemy import text
 from fastapi.responses import JSONResponse
 import traceback
+from sqlalchemy import text
 # ----------------------------------------------------------------------
 # 🔹 Importar todos los modelos antes de crear las tablas
 # ----------------------------------------------------------------------
@@ -145,39 +146,67 @@ app.include_router(auth_ruta.router)
 # ----------------------------------------------------------------------
 @app.get("/")
 def root():
-    """
-    Verifica el estado del backend y la conexión a la base de datos.
-    """
+    """Verifica el estado del backend y conexiones"""
+    from app.config import SessionLocal
+    
+    # Verificar SQL
+    sql_ok = False
     try:
         db = SessionLocal()
-        db.execute(text("SELECT 1"))
+        db.execute(text("SELECT 1"))  # ← Agregar text()
         db.close()
-        return {
-            "message": "🚀 Proyecto SaveWorkIA funcionando correctamente",
-            "db_status": "✅ Conexión a la base de datos exitosa"
+        sql_ok = True
+    except Exception as e:
+        print(f"Error SQL en root: {e}")
+    
+    # Verificar MongoDB
+    mongo_ok = False
+    try:
+        MongoDB.get_client()
+        mongo_ok = True
+    except:
+        pass
+    
+    return {
+        "message": "🚀 SaveWorkIA Backend",
+        "status": "running",
+        "connections": {
+            "sql_server": "✅ Connected" if sql_ok else "❌ Disconnected",
+            "mongodb": "✅ Connected" if mongo_ok else "❌ Disconnected"
         }
-    except SQLAlchemyError as e:
-        return {
-            "message": "🚀 Proyecto SaveWorkIA funcionando",
-            "db_status": f"❌ Error en la base de datos: {e}"
-        }
-
+    }
 
 @app.on_event("startup")
 async def startup_event():
     """Se ejecuta cuando inicia la app"""
+    print("\n" + "="*50)
+    print("🚀 INICIANDO SAVEWORKIA BACKEND")
+    print("="*50 + "\n")
     
-    # Inicializar Firebase
-    NotificacionesFCMServicio.inicializar()
-    print("✅ Firebase listo para notificaciones")
+    # 1. Verificar SQL Server
+    from app.config import verificar_conexion
+    if verificar_conexion():
+        print("✅ SQL Server: Conectado\n")
+    else:
+        print("⚠️ SQL Server: Sin conexión (continuando...)\n")
+    
+    # 2. Inicializar Firebase
+    try:
+        NotificacionesFCMServicio.inicializar()
+        print("✅ Firebase: Inicializado\n")
+    except Exception as e:
+        print(f"⚠️ Firebase: Error - {str(e)[:100]}\n")
 
-    # Conectar a MongoDB
+    # 3. Conectar MongoDB
     try:
         MongoDB.get_client()
-        print("📦 MongoDB Atlas listo para uso")
+        print("✅ MongoDB: Conectado\n")
     except Exception as e:
-        print(f"❌ MongoDB no disponible: {e}")
-
+        print(f"⚠️ MongoDB: Error - {str(e)[:100]}\n")
+    
+    print("="*50)
+    print("✅ BACKEND LISTO")
+    print("="*50 + "\n")
 
 @app.on_event("shutdown")
 async def shutdown_event():
