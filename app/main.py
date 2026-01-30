@@ -7,7 +7,8 @@ from app.config import Base, engine, SessionLocal
 from sqlalchemy import text
 from fastapi.responses import JSONResponse
 import traceback
-from sqlalchemy import text
+from app.logs.mongodb import MongoDB
+
 # ----------------------------------------------------------------------
 # 🔹 Importar todos los modelos antes de crear las tablas
 # ----------------------------------------------------------------------
@@ -32,9 +33,7 @@ from app.modelos import evidencias_fallo
 from app.modelos import zona_epp
 from app.modelos import token_reset_modelo
 from app.modelos import fcm_token_modelo
-from app.logs.mongodb import MongoDB
 
-# DEPLEIEGE EN AZURE
 # ----------------------------------------------------------------------
 # 🔹 Crear tablas automáticamente (solo si no existen)
 # ----------------------------------------------------------------------
@@ -77,9 +76,6 @@ from app.routers import (
     reporte_router,
     zona_epp_router,
     auth_ruta,
-
-
-
 )
 
 # ----------------------------------------------------------------------
@@ -92,18 +88,12 @@ app = FastAPI(
     debug=True
 )
 
-
 # ----------------------------------------------------------------------
 # 🔹 Configuración de CORS (para permitir peticiones desde el frontend)
 # ----------------------------------------------------------------------
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:5173"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      # puedes usar ["*"] si aún no tienes dominio
+    allow_origins=["*"],  # Permitir todas las origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -141,19 +131,18 @@ app.include_router(trabajador_funciones_router.router)
 app.include_router(reporte_router.router)
 app.include_router(zona_epp_router.router)
 app.include_router(auth_ruta.router)
+
 # ----------------------------------------------------------------------
 # 🔹 Endpoint raíz de prueba
 # ----------------------------------------------------------------------
 @app.get("/")
 def root():
     """Verifica el estado del backend y conexiones"""
-    from app.config import SessionLocal
-    
     # Verificar SQL
     sql_ok = False
     try:
         db = SessionLocal()
-        db.execute(text("SELECT 1"))  # ← Agregar text()
+        db.execute(text("SELECT 1"))
         db.close()
         sql_ok = True
     except Exception as e:
@@ -183,21 +172,14 @@ async def startup_event():
     print("🚀 INICIANDO SAVEWORKIA BACKEND")
     print("="*50 + "\n")
     
-    # 1. Verificar SQL Server
-    from app.config import verificar_conexion
-    if verificar_conexion():
-        print("✅ SQL Server: Conectado\n")
-    else:
-        print("⚠️ SQL Server: Sin conexión (continuando...)\n")
-    
-    # 2. Inicializar Firebase
+    # 1. Inicializar Firebase
     try:
         NotificacionesFCMServicio.inicializar()
         print("✅ Firebase: Inicializado\n")
     except Exception as e:
         print(f"⚠️ Firebase: Error - {str(e)[:100]}\n")
 
-    # 3. Conectar MongoDB
+    # 2. Conectar MongoDB
     try:
         MongoDB.get_client()
         print("✅ MongoDB: Conectado\n")
@@ -213,7 +195,6 @@ async def shutdown_event():
     MongoDB.close_connection()
     print("🔒 Conexión a MongoDB cerrada")
 
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     return JSONResponse(
@@ -223,4 +204,3 @@ async def global_exception_handler(request, exc):
             "trace": traceback.format_exc()
         }
     )
-
