@@ -104,7 +104,8 @@ origins = [
     "http://127.0.0.1:5173",         
     "http://104.45.177.193:3000",    
     "https://tudominio.com",  
-    "https://nice-glacier-091162410.1.azurestaticapps.net",       
+    "https://nice-glacier-091162410.1.azurestaticapps.net",     
+    "https://saveworkia-app.azurewebsites.net",   
 ]
 
 app.add_middleware(
@@ -114,37 +115,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ============================================================
-# 🔹 MIDDLEWARE PARA REDIRIGIR /proxy/* A HTTP
-# ============================================================
-@app.middleware("http")
-async def proxy_middleware(request: Request, call_next):
-    """
-    Redirige peticiones a /proxy/* hacia cualquier URL HTTP
-    Ejemplo: /proxy/http://ejemplo.com/ruta → http://ejemplo.com/ruta
-    """
-    if request.url.path.startswith("/proxy/"):
-        target_url = request.url.path[7:]  # Quita "/proxy/"
-        
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.request(
-                    method=request.method,
-                    url=target_url,
-                    headers={k: v for k, v in request.headers.items() if k.lower() not in ["host"]},
-                    content=await request.body(),
-                )
-                return StreamingResponse(
-                    iter([response.content]),
-                    status_code=response.status_code,
-                    headers=dict(response.headers),
-                    media_type=response.headers.get("content-type"),
-                )
-            except Exception as e:
-                return JSONResponse({"error": str(e)}, status_code=500)
-    
-    return await call_next(request)
 
 # ----------------------------------------------------------------------
 # 🔹 Registrar Routers
