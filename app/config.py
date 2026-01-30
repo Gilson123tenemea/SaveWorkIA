@@ -6,16 +6,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ====================================0===00#
 # ====== OBTENER VARIABLES DE ENTORNO ======
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "1234")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "3306")
+DB_USER = os.getenv("DB_USER", "azureuser")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "datadase2026!Secure")
+DB_HOST = os.getenv("DB_HOST", "saveworkia-sqlserver.database.windows.net")
+DB_PORT = os.getenv("DB_PORT", "1433")
 DB_NAME = os.getenv("DB_NAME", "saveworkdboriginal8")
 
-# ====== CONSTRUIR URL DE CONEXIÓN ======
-SQLALCHEMY_DATABASE_URL = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# ====== CONSTRUIR URL DE CONEXIÓN PARA MSSQL ======
+# Usar pyodbc driver para SQL Server en Azure
+SQLALCHEMY_DATABASE_URL = f"mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:1433/{DB_NAME}?driver=ODBC+Driver+17+for+SQL+Server"
 
 print(f"🔌 Conectando a: {DB_HOST}:{DB_PORT}/{DB_NAME}")
 
@@ -27,13 +27,17 @@ try:
         pool_size=10,
         max_overflow=20,
         pool_recycle=3600,
-        pool_pre_ping=True
+        pool_pre_ping=True,
+        connect_args={
+            "check_same_thread": False,
+            "timeout": 30
+        }
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base = declarative_base()
-    print("✅ Conexión a MySQL exitosa")
+    print("✅ Conexión a SQL Server exitosa")
 except Exception as e:
-    print(f"❌ Error en conexión a MySQL: {e}")
+    print(f"❌ Error en conexión a SQL Server: {e}")
     raise
 
 # ====== FUNCIÓN PARA OBTENER SESIÓN ======
