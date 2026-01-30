@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
 load_dotenv()
-
+#===========================================#
 # ====== OBTENER VARIABLES DE ENTORNO ======
 DB_USER = os.getenv("DB_USER", "azureuser")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "datadase2026!Secure")
