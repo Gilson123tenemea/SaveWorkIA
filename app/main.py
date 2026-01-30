@@ -103,9 +103,7 @@ origins = [
     "http://127.0.0.1:3000",       
     "http://127.0.0.1:5173",         
     "http://104.45.177.193:3000",    
-    "https://tudominio.com",  
-    "https://nice-glacier-091162410.1.azurestaticapps.net",     
-    "https://saveworkia-app.azurewebsites.net",   
+    "https://nice-glacier-091162410.1.azurestaticapps.net", 
 ]
 
 app.add_middleware(
