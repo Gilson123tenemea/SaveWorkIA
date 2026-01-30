@@ -1,5 +1,5 @@
 # app/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 from app.servicios.notificaciones_fcm_servicio import NotificacionesFCMServicio
@@ -8,6 +8,8 @@ from sqlalchemy import text
 from fastapi.responses import JSONResponse
 import traceback
 from sqlalchemy import text
+from fastapi.responses import StreamingResponse
+import httpx
 # ----------------------------------------------------------------------
 # 🔹 Importar todos los modelos antes de crear las tablas
 # ----------------------------------------------------------------------
@@ -101,7 +103,8 @@ origins = [
     "http://127.0.0.1:3000",       
     "http://127.0.0.1:5173",         
     "http://104.45.177.193:3000",    
-    "https://tudominio.com",         
+    "https://tudominio.com",  
+    "https://nice-glacier-091162410.1.azurestaticapps.net",       
 ]
 
 app.add_middleware(
@@ -111,6 +114,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================
+# 🔹 MIDDLEWARE PARA REDIRIGIR /proxy/* A HTTP
+# ============================================================
+@app.middleware("http")
+async def proxy_middleware(request: Request, call_next):
+    """
+    Redirige peticiones a /proxy/* hacia cualquier URL HTTP
+    Ejemplo: /proxy/http://ejemplo.com/ruta → http://ejemplo.com/ruta
+    """
+    if request.url.path.startswith("/proxy/"):
+        target_url = request.url.path[7:]  # Quita "/proxy/"
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.request(
+                    method=request.method,
+                    url=target_url,
+                    headers={k: v for k, v in request.headers.items() if k.lower() not in ["host"]},
+                    content=await request.body(),
+                )
+                return StreamingResponse(
+                    iter([response.content]),
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.headers.get("content-type"),
+                )
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
+    
+    return await call_next(request)
+
 # ----------------------------------------------------------------------
 # 🔹 Registrar Routers
 # ----------------------------------------------------------------------
