@@ -5,6 +5,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.servicios.notificaciones_fcm_servicio import NotificacionesFCMServicio
 from app.config import Base, engine, SessionLocal
 from sqlalchemy import text
+from fastapi.responses import JSONResponse
+import traceback
 # ----------------------------------------------------------------------
 # 🔹 Importar todos los modelos antes de crear las tablas
 # ----------------------------------------------------------------------
@@ -85,8 +87,10 @@ from app.routers import (
 app = FastAPI(
     title="SaveWorkIA Backend",
     version="1.0",
-    description="API REST del sistema SaveWorkIA para gestión y detección con IA."
+    description="API REST del sistema SaveWorkIA para gestión y detección con IA.",
+    debug=True
 )
+
 
 # ----------------------------------------------------------------------
 # 🔹 Configuración de CORS (para permitir peticiones desde el frontend)
@@ -181,5 +185,13 @@ async def shutdown_event():
     print("🔒 Conexión a MongoDB cerrada")
 
 
-
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": str(exc),
+            "trace": traceback.format_exc()
+        }
+    )
 

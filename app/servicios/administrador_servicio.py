@@ -90,14 +90,17 @@ def crear_administrador(db: Session, datos: AdministradorCreate, background_task
     except HTTPException:
         raise
     except Exception as e:
-        # 📝 LOG: Error inesperado
-        background_tasks.add_task(
-            LogServicio.registrar_error,
-            source="administrador_servicio",
-            accion="crear_administrador",
-            error_message=str(e)
+         background_tasks.add_task(
+             LogServicio.registrar_error,
+             source="administrador_servicio",
+             accion="crear_administrador",
+             error_message=str(e)
         )
-        raise
+         raise HTTPException(
+             status_code=500,
+             detail=f"Error al crear administrador: {str(e)}"
+        )
+
 
 
 async def login_administrador(db: Session, datos: LoginAdministrador, ip_address: Optional[str] = None):
