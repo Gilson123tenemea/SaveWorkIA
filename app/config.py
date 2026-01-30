@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ====================================0===00#
 # ====== OBTENER VARIABLES DE ENTORNO ======
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "1234")
