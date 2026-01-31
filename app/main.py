@@ -10,6 +10,7 @@ import traceback
 from sqlalchemy import text
 from fastapi.responses import StreamingResponse
 import httpx
+
 # ----------------------------------------------------------------------
 # 🔹 Importar todos los modelos antes de crear las tablas
 # ----------------------------------------------------------------------
@@ -99,20 +100,27 @@ app = FastAPI(
 # 🔹 Configuración de CORS (para permitir peticiones desde el frontend)
 # ----------------------------------------------------------------------
 origins = [
-    "http://localhost:3000",       
-    "http://127.0.0.1:3000",       
-    "http://127.0.0.1:5173",         
-    "http://104.45.177.193:3000",    
-    "https://nice-glacier-091162410.1.azurestaticapps.net", 
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "https://nice-glacier-091162410.1.azurestaticapps.net",
+    "https://saveworkia-backend-api-a6cpdfeuexgecka3.canadacentral-01.azurewebsites.net"
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,    
+    allow_origins=[
+        "https://nice-glacier-091162410.1.azurestaticapps.net",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ----------------------------------------------------------------------
 # 🔹 Registrar Routers
@@ -221,4 +229,5 @@ async def global_exception_handler(request, exc):
             "trace": traceback.format_exc()
         }
     )
+
 

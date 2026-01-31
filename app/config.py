@@ -12,7 +12,6 @@ load_dotenv()
 DB_USER = os.getenv("DB_USER", "azureuser")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "datadase2026!Secure")
 DB_HOST = os.getenv("DB_HOST", "saveworkia-sqlserver.database.windows.net")
-DB_PORT = os.getenv("DB_PORT", "1433")
 DB_NAME = os.getenv("DB_NAME", "saveworkdboriginal8")
 
 print(f"🔧 Cargando config: {DB_HOST}/{DB_NAME}")
@@ -22,12 +21,13 @@ password_encoded = quote_plus(DB_PASSWORD)
 
 # ====== URL DE CONEXIÓN PARA AZURE SQL ======
 SQLALCHEMY_DATABASE_URL = (
-    f"mssql+pyodbc://{DB_USER}:{password_encoded}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    f"?driver=ODBC+Driver+17+for+SQL+Server"
-    f"&Encrypt=yes"
-    f"&TrustServerCertificate=no"
-    f"&Connection+Timeout=30"
+    f"mssql+pyodbc://{DB_USER}:{password_encoded}@{DB_HOST}/{DB_NAME}"
+    "?driver=ODBC+Driver+17+for+SQL+Server"
+    "&Encrypt=yes"
+    "&TrustServerCertificate=no"
+    "&Connection Timeout=30"
 )
+
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
